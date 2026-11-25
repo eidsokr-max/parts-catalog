@@ -127,7 +127,7 @@ let shots = [], mergedUrl = "", dimsEdited = false;
 const dimsOf = () => shots.filter(b => b.mm).map(b => (b.mm.kind + " " + b.mm.mm + " مم")).join("، ");
 const drawShots = () => {
   $("shots").replaceChildren(...[0, 1, 2, 3].map(i => el("div", { className: "shot" }, shots[i] ? el("img", { src: URL.createObjectURL(shots[i]), alt: "لقطة " + (i + 1) }) : "لقطة " + (i + 1) + (i > 2 ? " (اختياري)" : ""))));
-  $("merge").disabled = shots.length < 3; $("shoot").disabled = $("gallery").disabled = shots.length >= 4; if (!dimsEdited) $("fdims").value = dimsOf(); checkSave();
+  $("merge").disabled = shots.length < 3; $("shoot").disabled = $("gallery").disabled = shots.length >= 4; if (!dimsEdited) $("fdims").value = dimsOf(); checkSave(); persistShots();
 };
 $("fdims").oninput = () => dimsEdited = true;
 const addFiles = e => { shots = [...shots, ...e.target.files].slice(0, 4); e.target.value = ""; mergedUrl = ""; $("merged").hidden = true; drawShots(); };
@@ -178,10 +178,25 @@ $("save").onclick = async () => {
   $("save").disabled = true; $("saveErr").textContent = "";
   try {
     await addDoc(collection(db, "parts"), { name: $("fname").value.trim(), code: $("fcode").value.trim(), cat: $("fcat").value.trim(), dept: $("fdept").value, model: $("fmodel").value.trim(), loc: $("floc").value.trim(), dims: $("fdims").value.trim(), notes: $("fnotes").value.trim(), qty: Math.max(0, parseInt($("fqty").value) || 0), img: mergedUrl, createdAt: serverTimestamp() });
-    shots = []; mergedUrl = ""; $("merged").hidden = true; ["fname", "fcode", "fcat", "fmodel", "floc", "fnotes", "fdims"].forEach(i => $(i).value = ""); dimsEdited = false; $("fdept").value = ""; $("fqty").value = "1"; drawShots(); flash("تمت إضافة القطعة.");
+    shots = []; mergedUrl = ""; $("merged").hidden = true; ["fname", "fcode", "fcat", "fmodel", "floc", "fnotes", "fdims"].forEach(i => $(i).value = ""); dimsEdited = false; $("fdept").value = ""; $("fqty").value = "1"; drawShots(); flash("تمت إضافة القطعة."); localStorage.removeItem("draft");
   } catch (e) { $("saveErr").textContent = "تعذر الحفظ: " + e.message; checkSave(); }
 };
-drawShots();
+// ---- حفظ مؤقت للصور والبيانات لحد ما تحفظ القطعة (لو المتصفح اتقفل في الخلفية) ----
+let idbOk = false;
+const idb = () => new Promise((res, rej) => { const r = indexedDB.open("draft", 1); r.onupgradeneeded = () => r.result.createObjectStore("s"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+async function persistShots() { if (!idbOk) return; try { const d = await idb(), s = d.transaction("s", "readwrite").objectStore("s"); s.clear(); shots.forEach((b, i) => s.put({ blob: b, mm: b.mm || null }, i)); } catch (e) {} }
+async function restoreShots() {
+ try { const d = await idb(), all = await new Promise((res, rej) => { const q = d.transaction("s").objectStore("s").getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+  shots = all.map(x => { if (x.mm) x.blob.mm = x.mm; return x.blob; }).slice(0, 4); } catch (e) {}
+ idbOk = true; drawShots();
+ if (shots.length) { flash("رجّعت الصور اللي كانت متصورة."); if (shots.length >= 3) $("merge").click(); }
+}
+const DF = ["fname", "fcode", "fcat", "fdept", "fmodel", "floc", "fnotes", "fdims", "fqty"];
+const saveDraft = () => { try { localStorage.setItem("draft", JSON.stringify(DF.map(i => $(i).value))); } catch (e) {} };
+DF.forEach(i => { $(i).addEventListener("input", saveDraft); $(i).addEventListener("change", saveDraft); });
+try { const d = JSON.parse(localStorage.getItem("draft") || "null"); if (d) DF.forEach((i, k) => { if (d[k]) $(i).value = d[k]; }); } catch (e) {}
+if ($("fdims").value) dimsEdited = true;
+restoreShots();
 
 // ---- قياس لحظي داخل الكاميرا: الصورة الحية شغالة، حدد نقطتين، والرقم يتحسب من المسافة بين الموبايل والقطعة، وبعدين تثبيت كلقطة ----
 // الدقة تقريبية: المتصفح مش بيدي عمق حقيقي، فالقياس بيعتمد على المسافة اللي تكتبها وعلى زاوية رؤية تقديرية للكاميرا (قابلة للمعايرة).
