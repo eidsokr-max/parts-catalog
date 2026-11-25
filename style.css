@@ -31,3 +31,11 @@ main{max-width:1040px;margin:0 auto;padding:16px;display:flex;flex-direction:col
 
 .low{color:#a15c00;font-weight:600;font-size:13px}
 textarea.inp{resize:vertical;font-family:inherit}
+
+.cammodal{padding:0;background:#000}.camwrap{position:relative;width:100%;height:100%;display:flex;flex-direction:column;background:#000}
+.camwrap video{flex:1;min-height:0;width:100%;object-fit:contain;background:#000}
+.camflash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .12s}.camflash.on{opacity:.7}
+.camcount{position:absolute;top:12px;left:12px;background:rgba(0,0,0,.6);color:#fff;padding:4px 12px;border-radius:14px;font-size:16px}
+.camrow{display:flex;align-items:center;justify-content:space-around;padding:14px 8px calc(14px + env(safe-area-inset-bottom));background:#000}
+.camb{min-width:84px;background:#4a2f2f}.camb.sec{background:#fff}
+.snap{width:68px;height:68px;border-radius:50%;border:4px solid #fff;background:#e5e0da;cursor:pointer}.snap:active{background:#bbb}.snap:disabled{opacity:.35}
