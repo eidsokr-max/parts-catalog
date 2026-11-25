@@ -63,3 +63,39 @@ button.pri{background:#17a05a}button.warn{background:#a8323e}
 #arPrev .r>*{flex:1}
 #arPrev select{font:inherit;padding:9px;border-radius:8px;border:0;background:#fff;color:#000}
 #arToast{position:absolute;top:30%;left:10%;right:10%;background:#17a05aee;border-radius:12px;padding:12px;text-align:center;display:none;font-size:16px}
+
+/* Layout polish: phone + desktop */
+html{-webkit-text-size-adjust:100%}
+body{min-height:100vh}
+header{position:sticky;top:0;z-index:5;background:#fbf9f6;padding:12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left))}
+h1{font-size:19px;line-height:1.3}
+main{width:100%;padding:14px 14px 40px}
+.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.card{min-width:0;overflow-wrap:anywhere}
+.card img{aspect-ratio:1;object-fit:cover}
+.name{line-height:1.35}
+.row>.btn{flex:1 1 140px}
+.row>.inp{flex:1 1 160px;width:auto}
+.mbox{max-height:92vh;overflow:auto}
+.mbox img{max-height:60vh;object-fit:contain}
+.merged{max-width:100%}
+.btn,.chip,.inp{touch-action:manipulation}
+@media(min-width:560px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:768px){
+  header{padding:16px 32px}
+  h1{font-size:24px}
+  main{padding:24px 32px 60px;gap:16px}
+  #q{max-width:560px}
+  #deptFilter{max-width:320px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+  .card{padding:10px;transition:box-shadow .15s}
+  .card:hover{box-shadow:0 4px 14px #0001}
+  .row>.btn{flex:0 0 auto}
+  .panel{padding:20px;max-width:760px}
+  .shots{max-width:520px}
+  .modal .mbox{max-width:560px}
+}
+@media(min-width:1200px){
+  main{max-width:1280px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+}
