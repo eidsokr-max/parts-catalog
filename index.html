@@ -11,6 +11,7 @@
 <main>
   <div id="cfgWarn" class="note" hidden>لسه ماتحطتش إعدادات Firebase في firebase-config.js</div>
   <input id="q" class="inp" placeholder="ابحث باسم القطعة أو رقمها">
+  <select id="deptFilter" class="inp"></select>
   <div id="chips" class="chips"></div>
   <div id="msg" class="msg" hidden role="status"></div>
   <div id="grid" class="grid"></div>
@@ -42,9 +43,18 @@
     <input id="fcode" class="inp" placeholder="رقم القطعة (اختياري)">
     <input id="fcat" class="inp" list="cats" placeholder="التصنيف">
     <datalist id="cats"></datalist>
+    <select id="fdept" class="inp"></select>
+    <input id="fmodel" class="inp" placeholder="الموديل (اختياري)">
+    <input id="floc" class="inp" placeholder="مكان القطعة في المخزن (اختياري)">
+    <textarea id="fnotes" class="inp" rows="2" placeholder="ملاحظات / وصف (اختياري)"></textarea>
     <input id="fqty" class="inp" inputmode="numeric" placeholder="الكمية" value="1">
+    <input id="fmin" class="inp" inputmode="numeric" placeholder="حد التنبيه (ينبه لما الكمية توصله أو تقل)" value="2">
     <button id="save" class="btn wide" type="button" disabled>حفظ القطعة</button>
     <p id="saveErr" class="err"></p>
+    <h3>تنبيه المخزون</h3>
+    <div id="lowList"></div>
+    <h3>تصدير</h3>
+    <div class="row"><button id="expParts" class="btn sec" type="button">تصدير القطع (Excel)</button><button id="expReqs" class="btn sec" type="button">تصدير الطلبات (Excel)</button></div>
     <h3>الطلبات</h3>
     <div id="reqs"></div>
   </section>
@@ -54,9 +64,24 @@
 <div id="reqModal" class="modal" hidden><div class="mbox">
   <div class="name" id="rtitle"></div>
   <input id="rname" class="inp" placeholder="اسمك" maxlength="60">
-  <input id="rphone" class="inp" placeholder="رقم الموبايل أو الإدارة (اختياري)" maxlength="30">
+  <select id="rdept" class="inp"></select>
+  <input id="rphone" class="inp" placeholder="رقم الموبايل أو الإيميل (اختياري)" maxlength="60">
   <div class="row"><button id="rsend" class="btn" type="button">إرسال الطلب</button><button id="rcancel" class="btn sec" type="button">إلغاء</button></div>
   <p id="rerr" class="err"></p>
+</div></div>
+<div id="editModal" class="modal" hidden><div class="mbox">
+  <div class="name">تعديل القطعة</div>
+  <input id="ename" class="inp" placeholder="اسم القطعة">
+  <input id="ecode" class="inp" placeholder="رقم القطعة">
+  <input id="ecat" class="inp" list="cats" placeholder="التصنيف">
+  <select id="edept" class="inp"></select>
+  <input id="emodel" class="inp" placeholder="الموديل">
+  <input id="eloc" class="inp" placeholder="مكان القطعة في المخزن">
+  <textarea id="enotes" class="inp" rows="2" placeholder="ملاحظات / وصف"></textarea>
+  <input id="eqty" class="inp" inputmode="numeric" placeholder="الكمية">
+  <input id="emin" class="inp" inputmode="numeric" placeholder="حد التنبيه">
+  <div class="row"><button id="esave" class="btn" type="button">حفظ التعديل</button><button id="ecancel" class="btn sec" type="button">إلغاء</button></div>
+  <p id="eerr" class="err"></p>
 </div></div>
 <script type="module" src="app.js"></script>
 </body>
