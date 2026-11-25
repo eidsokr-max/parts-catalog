@@ -229,12 +229,32 @@ const drawShots = () => {
 };
 $("fdims").oninput = () => dimsEdited = true;
 // ننسخ بايتات الصورة فورًا قبل ما نفرّغ الحقل (على أندرويد تفريغ الحقل بيبوّظ الملف فتظهر الصورة مكسورة)
+// وبعدها بنجهّز كل صورة: نحوّلها JPEG بحد أقصى 1600px عشان الدمج والحفظ، ونحوّل HEIC لو الجهاز مش بيقراها
+const imgFromBlob = b => new Promise((res, rej) => { const u = URL.createObjectURL(b), i = new Image(); i.onload = () => { URL.revokeObjectURL(u); res(i); }; i.onerror = () => { URL.revokeObjectURL(u); rej(new Error("decode")); }; i.src = u; });
+const shrink = async b => {
+  const im = await imgFromBlob(b), k = Math.min(1, 1600 / Math.max(im.width, im.height));
+  const c = document.createElement("canvas"); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+  return await new Promise((res, rej) => c.toBlob(x => x ? res(x) : rej(new Error("encode")), "image/jpeg", 0.88));
+};
+let heicLib = null;
+const heicToJpeg = async b => {
+  if (!heicLib) { await new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"; s.onload = res; s.onerror = () => rej(new Error("تعذر تحميل محول HEIC")); document.head.append(s); }); heicLib = window.heic2any; }
+  const out = await heicLib({ blob: b, toType: "image/jpeg", quality: 0.9 });
+  return Array.isArray(out) ? out[0] : out;
+};
+const normShot = async f => {
+  const buf = await f.arrayBuffer(); if (!buf.byteLength) throw new Error("الملف فاضي");
+  const b = new Blob([buf], { type: f.type || "image/jpeg" });
+  try { return await shrink(b); } catch (e) {}
+  try { return await shrink(await heicToJpeg(b)); } catch (e) { throw new Error(/heic|heif/i.test((f.type || "") + " " + (f.name || "")) ? "صورة HEIC اتعذّر تحويلها" : "صيغة الصورة دي مش مدعومة"); }
+};
 const addFiles = async e => {
   const inp = e.target, fl = [...inp.files].slice(0, 4 - shots.length);
-  const got = [];
-  for (const f of fl) { try { const buf = await f.arrayBuffer(); if (buf.byteLength) got.push(new Blob([buf], { type: f.type || "image/jpeg" })); } catch (err) {} }
+  const got = [], bad = [];
+  for (const f of fl) { try { got.push(await normShot(f)); } catch (err) { bad.push(err.message); } }
   inp.value = "";
-  if (got.length < fl.length) flash("في صورة ما اتقرتش، جرّب تختارها تاني.");
+  if (bad.length) flash("في " + bad.length + " صورة ما اتقرتش (" + bad[0] + "). جرّب تختارها تاني أو حوّلها JPEG.");
   shots = [...shots, ...got].slice(0, 4); mergedUrl = ""; $("merged").hidden = true; drawShots();
 };
 $("cam").onchange = addFiles; $("pick").onchange = addFiles;
@@ -243,7 +263,7 @@ $("shoot").onclick = () => startAR();
 $("plain").onclick = () => $("cam").click();
 $("gallery").onclick = () => $("pick").click();
 $("clear").onclick = () => { dimsEdited = false; shots = []; mergedUrl = ""; $("merged").hidden = true; drawShots(); };
-const loadImg = f => new Promise((res, rej) => { const u = URL.createObjectURL(f), i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = u; });
+const loadImg = f => new Promise((res, rej) => { const u = URL.createObjectURL(f), i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("في لقطة مش بتتقرا، امسح اللقطات وجرّب تاني")); i.src = u; });
 async function combine(files) {
   // كل لقطة بتظهر كاملة من غير قص: الخلية بنسبة الصور الحقيقية (الوسيط)
   const imgs = await Promise.all(files.map(loadImg));
