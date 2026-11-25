@@ -103,3 +103,11 @@ main{width:100%;padding:14px 14px 40px}
 /* Show photos complete, never cropped */
 .card img{aspect-ratio:auto;height:auto;object-fit:contain;background:#f3eee7}
 .mbox img{width:100%;height:auto;max-height:72vh;object-fit:contain;background:#f3eee7;align-self:center}
+
+/* Pending requests badge + approval */
+.badge{display:inline-block;min-width:22px;padding:2px 7px;margin-inline-start:6px;border-radius:999px;background:#d93025;color:#fff;font-size:13px;font-weight:700;text-align:center;line-height:1.4}
+.badge[hidden]{display:none}
+.req.pending{border:2px solid #d93025}
+.st-pending{color:#d93025;font-weight:700}
+.st-rejected{color:#888}
+.st-approved{color:#17a05a}
