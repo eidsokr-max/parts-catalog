@@ -117,7 +117,9 @@ function highlightPendingRequests() {
     row.style.outlineOffset = "2px";
     setTimeout(() => { row.style.outline = ""; row.style.outlineOffset = ""; }, 5000);
   });
-  (pending[0] || $("reqs").previousElementSibling).scrollIntoView({ behavior: "smooth", block: pending.length ? "center" : "start" });
+  // سكرول فوري (مش smooth) ويتكرر بعد ما الصور والعناصر تحمّل وتحرّك الصفحة
+  const go = () => { const t = $("reqs").querySelector(".req.pending") || $("reqs"); t.scrollIntoView({ behavior: "auto", block: "center" }); };
+  go(); [300, 800, 1600].forEach(ms => setTimeout(() => { if (location.hash === "#requests") go(); }, ms));
 }
 function openRequests() {
   if (!isOwner) {
@@ -131,8 +133,8 @@ function openRequests() {
   highlightPendingRequests();
 }
 function goToRequests() {
-  if (location.hash === "#requests") openRequests();
-  else location.hash = "requests";
+  if (location.hash !== "#requests") history.replaceState(null, "", "#requests");
+  openRequests();
 }
 badge.onclick = goToRequests;
 badge.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToRequests(); } };
