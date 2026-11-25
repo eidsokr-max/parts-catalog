@@ -186,10 +186,11 @@ const checkSave = () => $("save").disabled = !(mergedUrl && $("fname").value.tri
 ["fname", "fcat"].forEach(i => $(i).oninput = checkSave);
 $("save").onclick = async () => {
   $("save").disabled = true; $("saveErr").textContent = "";
+  const done = () => { shots = []; mergedUrl = ""; $("merged").hidden = true; ["fname", "fcode", "fcat", "fmodel", "floc", "fnotes", "fdims"].forEach(i => $(i).value = ""); dimsEdited = false; $("fdept").value = ""; $("fqty").value = "1"; drawShots(); flash("تمت إضافة القطعة."); localStorage.removeItem("draft"); };
   try {
     await addDoc(collection(db, "parts"), { name: $("fname").value.trim(), code: $("fcode").value.trim(), cat: $("fcat").value.trim(), dept: $("fdept").value, model: $("fmodel").value.trim(), loc: $("floc").value.trim(), dims: $("fdims").value.trim(), notes: $("fnotes").value.trim(), qty: Math.max(0, parseInt($("fqty").value) || 0), img: mergedUrl, createdAt: serverTimestamp() });
-    shots = []; mergedUrl = ""; $("merged").hidden = true; ["fname", "fcode", "fcat", "fmodel", "floc", "fnotes", "fdims"].forEach(i => $(i).value = ""); dimsEdited = false; $("fdept").value = ""; $("fqty").value = "1"; drawShots(); flash("تمت إضافة القطعة."); localStorage.removeItem("draft");
-  } catch (e) { $("saveErr").textContent = "تعذر الحفظ: " + e.message; checkSave(); }
+    done();
+  } catch (e) { if (e && e.code === "already-exists") { done(); return; } $("saveErr").textContent = "تعذر الحفظ: " + e.message; checkSave(); }
 };
 // ---- حفظ مؤقت للصور والبيانات لحد ما تحفظ القطعة (لو المتصفح اتقفل في الخلفية) ----
 let idbOk = false;
