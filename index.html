@@ -37,7 +37,9 @@
       <button id="gallery" class="btn sec" type="button">من المعرض</button>
       <button id="clear" class="btn sec" type="button">مسح اللقطات</button>
       <button id="merge" class="btn" type="button" disabled>دمج في صورة واحدة</button>
+      <a class="btn sec" href="measure.html">📏 قياس طول بالـAR</a>
     </div>
+    <p class="hint">للقياس وقت التصوير: افتح الكاميرا واضغط 📏 قياس، وحط كارت بنك جنب القطعة.</p>
     <img id="merged" class="merged" alt="الصورة المدمجة" hidden>
     <input id="fname" class="inp" placeholder="اسم القطعة">
     <input id="fcode" class="inp" placeholder="رقم القطعة (اختياري)">
@@ -46,6 +48,7 @@
     <select id="fdept" class="inp"></select>
     <input id="fmodel" class="inp" placeholder="الموديل (اختياري)">
     <input id="floc" class="inp" placeholder="مكان القطعة في المخزن (اختياري)">
+    <input id="fdims" class="inp" placeholder="المقاس (بيتملّي من القياس، أو اكتبه: طول 120 مم، قطر 40 مم)">
     <textarea id="fnotes" class="inp" rows="2" placeholder="ملاحظات / وصف (اختياري)"></textarea>
     <label class="lbl" for="fqty">الكمية (العدد الموجود في المخزن)</label>
     <input id="fqty" class="inp" inputmode="numeric" placeholder="الكمية" value="1">
@@ -79,6 +82,7 @@
   <select id="edept" class="inp"></select>
   <input id="emodel" class="inp" placeholder="الموديل">
   <input id="eloc" class="inp" placeholder="مكان القطعة في المخزن">
+  <input id="edims" class="inp" placeholder="المقاس">
   <textarea id="enotes" class="inp" rows="2" placeholder="ملاحظات / وصف"></textarea>
   <label class="lbl" for="eqty">الكمية (العدد الموجود في المخزن)</label>
   <input id="eqty" class="inp" inputmode="numeric" placeholder="الكمية">
@@ -90,7 +94,9 @@
 <div id="camModal" class="modal cammodal" hidden><div class="camwrap">
   <video id="live" playsinline muted autoplay></video><div id="camFlash" class="camflash"></div>
   <div class="camcount" id="camCount">0 / 4</div>
-  <div class="camrow"><button id="camCancel" class="btn sec camb" type="button">إلغاء</button><button id="snap" class="snap" type="button" aria-label="التقاط"></button><button id="camDone" class="btn camb" type="button">تم</button></div>
+  <canvas id="mcv" class="mcv" hidden></canvas><div id="mstat" class="mstat" hidden></div>
+  <div id="mrow" class="camrow mrow" hidden><select id="mkind" class="inp"><option>طول</option><option>عرض</option><option>قطر خارجي</option><option>قطر داخلي</option><option>سماكة</option><option>ارتفاع</option></select><select id="mref" class="inp"><option value="85.6">كارت: الطول 85.6</option><option value="53.98">كارت: العرض 53.98</option><option value="297">A4: الطول 297</option><option value="210">A4: العرض 210</option></select><button id="mreset" class="btn sec camb" type="button">إعادة</button><button id="mback" class="btn sec camb" type="button">رجوع</button><button id="mok" class="btn camb" type="button" disabled>تثبيت كلقطة</button></div>
+  <div class="camrow" id="crow"><button id="camCancel" class="btn sec camb" type="button">إلغاء</button><button id="measureBtn" class="btn sec camb" type="button">📏 قياس</button><button id="snap" class="snap" type="button" aria-label="التقاط"></button><button id="camDone" class="btn camb" type="button">تم</button></div>
 </div></div>
 <script type="module" src="app.js"></script>
 </body>
