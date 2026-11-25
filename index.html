@@ -38,7 +38,7 @@
       <button id="clear" class="btn sec" type="button">مسح اللقطات</button>
       <button id="merge" class="btn" type="button" disabled>دمج في صورة واحدة</button>
     </div>
-    <p class="hint">للقياس: افتح 📷 الكاميرا واضغط 📏 قياس، وحط جنب القطعة مرجع معروف الطول (ورقة A4 أو مسطرة). تثبيت القياس بيضيفه كلقطة.</p>
+    <p class="hint">للقياس: افتح 📷 الكاميرا واضغط 📏 قياس، اكتب المسافة بين الموبايل والقطعة بالسنتيمتر، حدد طرفي الشيء على الصورة الحية، وبعدين تثبيت كلقطة. القياس تقريبي.</p>
     <img id="merged" class="merged" alt="الصورة المدمجة" hidden>
     <input id="fname" class="inp" placeholder="اسم القطعة">
     <input id="fcode" class="inp" placeholder="رقم القطعة (اختياري)">
@@ -90,7 +90,7 @@
   <video id="live" playsinline muted autoplay></video><div id="camFlash" class="camflash"></div>
   <div class="camcount" id="camCount">0 / 4</div>
   <canvas id="mcv" class="mcv" hidden></canvas><div id="mstat" class="mstat" hidden></div>
-  <div id="mrow" class="camrow mrow" hidden><select id="mkind" class="inp"><option>طول</option><option>عرض</option><option>قطر خارجي</option><option>قطر داخلي</option><option>سماكة</option><option>ارتفاع</option></select><select id="mref" class="inp"><option value="85.6">كارت: الطول 85.6</option><option value="53.98">كارت: العرض 53.98</option><option value="297">A4: الطول 297</option><option value="210">A4: العرض 210</option></select><button id="mreset" class="btn sec camb" type="button">إعادة</button><button id="mback" class="btn sec camb" type="button">رجوع</button><button id="mok" class="btn camb" type="button" disabled>تثبيت كلقطة</button></div>
+  <div id="mrow" class="camrow mrow" hidden><select id="mkind" class="inp"><option>طول</option><option>عرض</option><option>قطر خارجي</option><option>قطر داخلي</option><option>سماكة</option><option>ارتفاع</option></select><input id="mref" class="inp" type="number" inputmode="decimal" min="1" placeholder="المسافة سم"><button id="mcal" class="btn sec camb" type="button" disabled>معايرة</button><button id="mreset" class="btn sec camb" type="button">إعادة</button><button id="mback" class="btn sec camb" type="button">رجوع</button><button id="mok" class="btn camb" type="button" disabled>تثبيت كلقطة</button></div>
   <div class="camrow" id="crow"><button id="camCancel" class="btn sec camb" type="button">إلغاء</button><button id="measureBtn" class="btn sec camb" type="button">📏 قياس</button><button id="snap" class="snap" type="button" aria-label="التقاط"></button><button id="camDone" class="btn camb" type="button">تم</button></div>
 </div></div>
 <script type="module" src="app.js"></script>
