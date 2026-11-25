@@ -39,3 +39,4 @@ textarea.inp{resize:vertical;font-family:inherit}
 .camrow{display:flex;align-items:center;justify-content:space-around;padding:14px 8px calc(14px + env(safe-area-inset-bottom));background:#000}
 .camb{min-width:84px;background:#4a2f2f}.camb.sec{background:#fff}
 .snap{width:68px;height:68px;border-radius:50%;border:4px solid #fff;background:#e5e0da;cursor:pointer}.snap:active{background:#bbb}.snap:disabled{opacity:.35}
+.lbl{display:block;font-size:13px;color:#7a6f66;margin:6px 2px -4px}
