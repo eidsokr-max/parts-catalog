@@ -14,8 +14,6 @@ const fillDept = (id, first) => { $(id).replaceChildren(el("option", { value: ""
 fillDept("deptFilter", "كل الأقسام"); fillDept("fdept", "القسم (اختياري)"); fillDept("edept", "القسم"); fillDept("rdept", "قسمك (اختياري)");
 let deptF = "", editPart = null;
 $("deptFilter").onchange = e => { deptF = e.target.value; render(); };
-const minOf = p => Number.isFinite(p.minQty) ? p.minQty : 2;
-const isLow = p => p.qty > 0 && p.qty <= minOf(p);
 let parts = [], cat = "الكل", isOwner = false, reqPart = null, unsubReq = null;
 const flash = t => { const m = $("msg"); m.textContent = t; m.hidden = false; setTimeout(() => m.hidden = true, 6000); };
 
@@ -38,7 +36,6 @@ function render() {
  ...(p.loc ? [el("div", { className: "meta", textContent: "المكان: " + p.loc })] : []),
  ...(p.dims ? [el("div", { className: "meta", textContent: "المقاس: " + p.dims })] : []),
  ...(p.notes ? [el("div", { className: "meta", textContent: p.notes })] : []),
- ...(isLow(p) ? [el("div", { className: "low", textContent: "⚠ قربت تخلص" })] : []),
       el("div", { className: p.qty > 0 ? "" : "out", textContent: p.qty > 0 ? "متاح: " + p.qty : "خلصت" }),
       el("button", { className: "btn wide", type: "button", disabled: p.qty <= 0, textContent: "اطلب", onclick: () => openReq(p) }));
     if (isOwner) card.append(el("div", { className: "row" },
@@ -51,13 +48,13 @@ function render() {
 }
 $("q").oninput = render;
 function renderLow() {
- const low = parts.filter(p => p.qty <= minOf(p)).sort((x, y) => x.qty - y.qty);
- $("lowList").replaceChildren(...(low.length ? low.map(p => el("div", { className: "req" }, el("div", { className: "name", textContent: p.name }), el("div", { className: p.qty > 0 ? "low" : "out", textContent: p.qty > 0 ? "باقي " + p.qty : "خلصت" }))) : [el("p", { className: "hint", textContent: "مفيش قطع قربت تخلص." })]));
+ const low = parts.filter(p => p.qty <= 0).sort((x, y) => x.qty - y.qty);
+ $("lowList").replaceChildren(...(low.length ? low.map(p => el("div", { className: "req" }, el("div", { className: "name", textContent: p.name }), el("div", { className: p.qty > 0 ? "low" : "out", textContent: p.qty > 0 ? "باقي " + p.qty : "خلصت" }))) : [el("p", { className: "hint", textContent: "مفيش قطع خلصت." })]));
 }
 // ---- edit part ----
 function openEdit(p) {
  editPart = p; $("eerr").textContent = "";
- $("ename").value = p.name; $("ecode").value = p.code || ""; $("ecat").value = p.cat; $("edept").value = p.dept || ""; $("emodel").value = p.model || ""; $("eloc").value = p.loc || ""; $("edims").value = p.dims || ""; $("enotes").value = p.notes || ""; $("eqty").value = p.qty; $("emin").value = minOf(p);
+ $("ename").value = p.name; $("ecode").value = p.code || ""; $("ecat").value = p.cat; $("edept").value = p.dept || ""; $("emodel").value = p.model || ""; $("eloc").value = p.loc || ""; $("edims").value = p.dims || ""; $("enotes").value = p.notes || ""; $("eqty").value = p.qty;
  $("editModal").hidden = false;
 }
 $("ecancel").onclick = () => $("editModal").hidden = true;
@@ -66,7 +63,7 @@ $("esave").onclick = async () => {
  if (!name || !c) { $("eerr").textContent = "الاسم والتصنيف مطلوبين"; return; }
  $("esave").disabled = true;
  try {
- await updateDoc(doc(db, "parts", editPart.id), { name, code: $("ecode").value.trim(), cat: c, dept: $("edept").value, model: $("emodel").value.trim(), loc: $("eloc").value.trim(), dims: $("edims").value.trim(), notes: $("enotes").value.trim(), qty: Math.max(0, parseInt($("eqty").value) || 0), minQty: Math.max(0, parseInt($("emin").value) || 0) });
+ await updateDoc(doc(db, "parts", editPart.id), { name, code: $("ecode").value.trim(), cat: c, dept: $("edept").value, model: $("emodel").value.trim(), loc: $("eloc").value.trim(), dims: $("edims").value.trim(), notes: $("enotes").value.trim(), qty: Math.max(0, parseInt($("eqty").value) || 0) });
  $("editModal").hidden = true; flash("تم حفظ التعديل.");
  } catch (e) { $("eerr").textContent = "تعذر الحفظ: " + e.message; }
  $("esave").disabled = false;
@@ -79,7 +76,7 @@ function download(name, rows) {
  const a = el("a", { href: URL.createObjectURL(blob), download: name }); document.body.append(a); a.click(); a.remove();
 }
 const stamp = () => new Date().toISOString().slice(0, 10);
-$("expParts").onclick = () => download(`parts-${stamp()}.csv`, [["الاسم", "رقم القطعة", "التصنيف", "القسم", "الموديل", "المكان", "المقاس", "ملاحظات", "الكمية", "حد التنبيه"], ...parts.map(p => [p.name, p.code, p.cat, p.dept, p.model, p.loc, p.dims, p.notes, p.qty, minOf(p)])]);
+$("expParts").onclick = () => download(`parts-${stamp()}.csv`, [["الاسم", "رقم القطعة", "التصنيف", "القسم", "الموديل", "المكان", "المقاس", "ملاحظات", "الكمية"], ...parts.map(p => [p.name, p.code, p.cat, p.dept, p.model, p.loc, p.dims, p.notes, p.qty])]);
 $("expReqs").onclick = () => download(`requests-${stamp()}.csv`, [["القطعة", "اسم الطالب", "قسم الطالب", "رقم/إيميل", "الوقت", "تم التسليم"], ...reqs.map(r => [r.partName, r.name, r.dept, r.phone, r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString("ar-EG") : "", r.done ? "نعم" : "لا"])]);
 $("mclose").onclick = () => $("modal").hidden = true;
 
@@ -180,8 +177,8 @@ const checkSave = () => $("save").disabled = !(mergedUrl && $("fname").value.tri
 $("save").onclick = async () => {
   $("save").disabled = true; $("saveErr").textContent = "";
   try {
-    await addDoc(collection(db, "parts"), { name: $("fname").value.trim(), code: $("fcode").value.trim(), cat: $("fcat").value.trim(), dept: $("fdept").value, model: $("fmodel").value.trim(), loc: $("floc").value.trim(), dims: $("fdims").value.trim(), notes: $("fnotes").value.trim(), minQty: Math.max(0, parseInt($("fmin").value) || 0), qty: Math.max(0, parseInt($("fqty").value) || 0), img: mergedUrl, createdAt: serverTimestamp() });
-    shots = []; mergedUrl = ""; $("merged").hidden = true; ["fname", "fcode", "fcat", "fmodel", "floc", "fnotes", "fdims"].forEach(i => $(i).value = ""); dimsEdited = false; $("fdept").value = ""; $("fqty").value = "1"; $("fmin").value = "2"; drawShots(); flash("تمت إضافة القطعة.");
+    await addDoc(collection(db, "parts"), { name: $("fname").value.trim(), code: $("fcode").value.trim(), cat: $("fcat").value.trim(), dept: $("fdept").value, model: $("fmodel").value.trim(), loc: $("floc").value.trim(), dims: $("fdims").value.trim(), notes: $("fnotes").value.trim(), qty: Math.max(0, parseInt($("fqty").value) || 0), img: mergedUrl, createdAt: serverTimestamp() });
+    shots = []; mergedUrl = ""; $("merged").hidden = true; ["fname", "fcode", "fcat", "fmodel", "floc", "fnotes", "fdims"].forEach(i => $(i).value = ""); dimsEdited = false; $("fdept").value = ""; $("fqty").value = "1"; drawShots(); flash("تمت إضافة القطعة.");
   } catch (e) { $("saveErr").textContent = "تعذر الحفظ: " + e.message; checkSave(); }
 };
 drawShots();
