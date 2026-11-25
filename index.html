@@ -51,11 +51,9 @@
     <textarea id="fnotes" class="inp" rows="2" placeholder="ملاحظات / وصف (اختياري)"></textarea>
     <label class="lbl" for="fqty">الكمية (العدد الموجود في المخزن)</label>
     <input id="fqty" class="inp" inputmode="numeric" placeholder="الكمية" value="1">
-    <label class="lbl" for="fmin">حد التنبيه (ينبهك لما الكمية توصل الرقم ده أو تقل عنه)</label>
-    <input id="fmin" class="inp" inputmode="numeric" placeholder="حد التنبيه (ينبه لما الكمية توصله أو تقل)" value="2">
     <button id="save" class="btn wide" type="button" disabled>حفظ القطعة</button>
     <p id="saveErr" class="err"></p>
-    <h3>تنبيه المخزون</h3>
+    <h3>القطع الخالصة</h3>
     <div id="lowList"></div>
     <h3>تصدير</h3>
     <div class="row"><button id="expParts" class="btn sec" type="button">تصدير القطع (Excel)</button><button id="expReqs" class="btn sec" type="button">تصدير الطلبات (Excel)</button></div>
@@ -85,8 +83,6 @@
   <textarea id="enotes" class="inp" rows="2" placeholder="ملاحظات / وصف"></textarea>
   <label class="lbl" for="eqty">الكمية (العدد الموجود في المخزن)</label>
   <input id="eqty" class="inp" inputmode="numeric" placeholder="الكمية">
-  <label class="lbl" for="emin">حد التنبيه (ينبهك لما الكمية توصل الرقم ده أو تقل عنه)</label>
-  <input id="emin" class="inp" inputmode="numeric" placeholder="حد التنبيه">
   <div class="row"><button id="esave" class="btn" type="button">حفظ التعديل</button><button id="ecancel" class="btn sec" type="button">إلغاء</button></div>
   <p id="eerr" class="err"></p>
 </div></div>
