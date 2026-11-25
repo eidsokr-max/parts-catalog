@@ -102,14 +102,41 @@ $("rsend").onclick = async () => {
     if (!cur || cur.qty <= 0) throw new Error("القطعة خلصت");
     await addDoc(collection(db, "requests"), { partId: reqPart.id, partName: cur.name, name, phone, dept: $("rdept").value, qty: 1, status: "pending", createdAt: serverTimestamp(), done: false });
     localStorage.setItem("rname", name); localStorage.setItem("rphone", phone); localStorage.setItem("rdept", $("rdept").value);
-    $("reqModal").hidden = true; flash("تم إرسال طلبك. المسؤول هيراجعه، والكمية بتنقص بعد موافقته.");
+    $("reqModal").hidden = true; flash("تم ارسال الطلب");
   } catch (e) { $("rerr").textContent = e.message; }
   $("rsend").disabled = false;
 };
 
 // ---- موافقة / رفض الطلبات: الكمية بتنقص بعد الموافقة بس ----
-const badge = el("span", { id: "reqBadge", className: "badge", hidden: true, title: "طلبات في انتظار موافقتك" });
+const badge = el("span", { id: "reqBadge", className: "badge", hidden: true, title: "طلبات في انتظار موافقتك", role: "button", tabIndex: 0, "aria-label": "افتح الطلبات في إدارة المخزن" });
 $("ownerBtn").after(badge);
+function highlightPendingRequests() {
+  const pending = [...$("reqs").querySelectorAll(".req.pending")];
+  pending.forEach(row => {
+    row.style.outline = "3px solid #df4a3f";
+    row.style.outlineOffset = "2px";
+    setTimeout(() => { row.style.outline = ""; row.style.outlineOffset = ""; }, 5000);
+  });
+  (pending[0] || $("reqs").previousElementSibling).scrollIntoView({ behavior: "smooth", block: pending.length ? "center" : "start" });
+}
+function openRequests() {
+  if (!isOwner) {
+    $("owner").hidden = true;
+    $("login").hidden = false;
+    $("email").focus({ preventScroll: true });
+    return;
+  }
+  $("login").hidden = true;
+  $("owner").hidden = false;
+  highlightPendingRequests();
+}
+function goToRequests() {
+  if (location.hash === "#requests") openRequests();
+  else location.hash = "requests";
+}
+badge.onclick = goToRequests;
+badge.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToRequests(); } };
+window.addEventListener("hashchange", () => { if (location.hash === "#requests") openRequests(); });
 const baseTitle = document.title;
 function setBadge(n) { badge.textContent = n; badge.hidden = !n; document.title = n ? "(" + n + ") " + baseTitle : baseTitle; }
 // إشعار المتصفح: بيشتغل والصفحة مفتوحة أو في الخلفية. مش بيوصل لو المتصفح اتقفل خالص.
@@ -166,6 +193,8 @@ onAuthStateChanged(auth, u => {
   isOwner = !!u; $("owner").hidden = !u; $("login").hidden = true; $("ownerBtn").textContent = "إدارة المخزن";
   if (unsubReq) { unsubReq(); unsubReq = null; }
   setBadge(0); reqSeen = false;
+  if (u && location.hash === "#requests") openRequests();
+  else if (!u && location.hash === "#requests") { $("login").hidden = false; $("email").focus({ preventScroll: true }); }
   if (u) unsubReq = onSnapshot(query(collection(db, "requests"), orderBy("createdAt", "desc")), s => {
     const docs = s.docs, st = d => d.data().status || "approved"; // الطلبات القديمة (قبل نظام الموافقة) اتخصمت فعلًا
     reqs = docs.map(d => d.data());
@@ -184,6 +213,7 @@ onAuthStateChanged(auth, u => {
           ] : sx === "approved" ? [el("button", { className: "btn sec", type: "button", textContent: r.done ? "رجّع" : "تم التسليم", onclick: () => updateDoc(d.ref, { done: !r.done }) })] : []),
           el("button", { className: "btn sec", type: "button", textContent: "حذف", onclick: () => { if (confirm("حذف الطلب؟")) deleteDoc(d.ref); } })));
     })));
+    if (location.hash === "#requests") highlightPendingRequests();
   }, e => flash("تعذر تحميل الطلبات: " + e.message));
   render();
 });
