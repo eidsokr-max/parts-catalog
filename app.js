@@ -140,7 +140,15 @@ const drawShots = () => {
   $("merge").disabled = shots.length < 3; $("shoot").disabled = $("gallery").disabled = shots.length >= 4; if (!dimsEdited) $("fdims").value = dimsOf(); checkSave(); persistShots();
 };
 $("fdims").oninput = () => dimsEdited = true;
-const addFiles = e => { shots = [...shots, ...e.target.files].slice(0, 4); e.target.value = ""; mergedUrl = ""; $("merged").hidden = true; drawShots(); };
+// ننسخ بايتات الصورة فورًا قبل ما نفرّغ الحقل (على أندرويد تفريغ الحقل بيبوّظ الملف فتظهر الصورة مكسورة)
+const addFiles = async e => {
+  const inp = e.target, fl = [...inp.files].slice(0, 4 - shots.length);
+  const got = [];
+  for (const f of fl) { try { const buf = await f.arrayBuffer(); if (buf.byteLength) got.push(new Blob([buf], { type: f.type || "image/jpeg" })); } catch (err) {} }
+  inp.value = "";
+  if (got.length < fl.length) flash("في صورة ما اتقرتش، جرّب تختارها تاني.");
+  shots = [...shots, ...got].slice(0, 4); mergedUrl = ""; $("merged").hidden = true; drawShots();
+};
 $("cam").onchange = addFiles; $("pick").onchange = addFiles;
 // ---- الكاميرا = شاشة القياس AR (WebXR): قيس، التقط لقطة بالقياس، كرر لحد ٤ لقطات، وارجع للفورم ----
 $("shoot").onclick = () => startAR();
@@ -180,7 +188,7 @@ const idb = () => new Promise((res, rej) => { const r = indexedDB.open("draft", 
 async function persistShots() { if (!idbOk) return; try { const d = await idb(), s = d.transaction("s", "readwrite").objectStore("s"); s.clear(); shots.forEach((b, i) => s.put({ blob: b, mm: b.mm || null }, i)); } catch (e) {} }
 async function restoreShots() {
  try { const d = await idb(), all = await new Promise((res, rej) => { const q = d.transaction("s").objectStore("s").getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
-  shots = all.map(x => { if (x.mm) x.blob.mm = x.mm; return x.blob; }).slice(0, 4); } catch (e) {}
+  shots = all.map(x => { if (x.mm) x.blob.mm = x.mm; return x.blob; }).filter(b => b && b.size > 0).slice(0, 4); } catch (e) {}
  idbOk = true; drawShots();
  if (shots.length) { flash("رجّعت الصور اللي كانت متصورة."); if (shots.length >= 3) $("merge").click(); }
 }
