@@ -99,3 +99,7 @@ main{width:100%;padding:14px 14px 40px}
   main{max-width:1280px}
   .grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
 }
+
+/* Show photos complete, never cropped */
+.card img{aspect-ratio:auto;height:auto;object-fit:contain;background:#f3eee7}
+.mbox img{width:100%;height:auto;max-height:72vh;object-fit:contain;background:#f3eee7;align-self:center}
