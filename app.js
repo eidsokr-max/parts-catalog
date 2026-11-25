@@ -9,18 +9,27 @@ const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.crea
 if (firebaseConfig.apiKey === "PASTE_HERE") { $("cfgWarn").hidden = false; throw new Error("firebase config missing"); }
 const app = initializeApp(firebaseConfig), db = getFirestore(app), auth = getAuth(app);
 
-const DEPTS = ["الصيانة العامة", "صيانة IS", "صيانة الكولد إند", "صيانة المكابس", "فريق التغييرات", "التشكيل"];
-const fillDept = (id, first) => { $(id).replaceChildren(el("option", { value: "", textContent: first }), ...DEPTS.map(d => el("option", { value: d, textContent: d }))); };
-fillDept("deptFilter", "كل الأقسام"); fillDept("fdept", "القسم (اختياري)"); fillDept("edept", "القسم"); fillDept("rdept", "قسمك (اختياري)");
+const BASE_DEPTS = ["الصيانة العامة", "صيانة IS", "صيانة الكولد إند", "صيانة المكابس", "فريق التغييرات", "التشكيل", "مخزن مستلزمات"];
+const extraDepts = () => { try { return JSON.parse(localStorage.getItem("xdepts") || "[]"); } catch (e) { return []; } };
+let DEPTS = [...BASE_DEPTS];
+const DSEL = [["deptFilter", "كل الأقسام"], ["fdept", "القسم (اختياري)"], ["edept", "القسم"], ["rdept", "قسمك (اختياري)"]];
+// الأقسام = الأساسية + اللي المالك أضافها + أي قسم مستخدم في قطعة (عشان يظهر لكل الناس)
+function fillDepts() {
+  DEPTS = [...new Set([...BASE_DEPTS, ...extraDepts(), ...parts.map(p => p.dept).filter(Boolean)])];
+  DSEL.forEach(([id, first]) => { const s = $(id), v = s.value; s.replaceChildren(el("option", { value: "", textContent: first }), ...DEPTS.map(d => el("option", { value: d, textContent: d }))); s.value = DEPTS.includes(v) ? v : ""; });
+}
 let deptF = "", editPart = null;
+let parts = [];
+fillDepts();
 $("deptFilter").onchange = e => { deptF = e.target.value; render(); };
-let parts = [], cat = "الكل", isOwner = false, reqPart = null, unsubReq = null;
+let cat = "الكل", isOwner = false, reqPart = null, unsubReq = null;
 const flash = t => { const m = $("msg"); m.textContent = t; m.hidden = false; setTimeout(() => m.hidden = true, 6000); };
 
 onSnapshot(collection(db, "parts"), s => { parts = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); render(); renderLow(); },
   e => flash("تعذر تحميل القطع: " + e.message));
 
 function render() {
+  fillDepts(); deptF = $("deptFilter").value;
   const cats = [...new Set(parts.map(p => p.cat))];
   const chips = $("chips"); chips.replaceChildren(...["الكل", ...cats].map(c => el("button", { type: "button", className: "chip" + (c === cat ? " on" : ""), textContent: c, onclick: () => { cat = c; render(); } })));
   $("cats").replaceChildren(...cats.map(c => el("option", { value: c })));
@@ -42,6 +51,7 @@ function render() {
       el("button", { className: "btn sec", type: "button", textContent: "+1", onclick: () => updateDoc(doc(db, "parts", p.id), { qty: p.qty + 1 }) }),
       el("button", { className: "btn sec", type: "button", textContent: "-1", disabled: p.qty <= 0, onclick: () => updateDoc(doc(db, "parts", p.id), { qty: p.qty - 1 }) }),
       el("button", { className: "btn sec", type: "button", textContent: "تعديل", onclick: () => openEdit(p) }),
+ (() => { const s = el("select", { className: "inp", title: "نقل لقسم آخر" }, el("option", { value: "", textContent: "نقل إلى…" }), ...DEPTS.filter(d => d !== p.dept).map(d => el("option", { value: d, textContent: d }))); s.onchange = async () => { if (!s.value) return; const to = s.value; if (confirm("نقل " + p.name + " إلى " + to + "؟")) { try { await updateDoc(doc(db, "parts", p.id), { dept: to }); flash("تم نقل القطعة إلى " + to); } catch (e) { flash("تعذر النقل: " + e.message); } } s.value = ""; }; return s; })(),
  el("button", { className: "btn sec", type: "button", textContent: "حذف", onclick: () => { if (confirm("حذف " + p.name + "؟")) deleteDoc(doc(db, "parts", p.id)); } })));
     return card;
   }));
@@ -242,4 +252,11 @@ $("mcal").onclick = () => {
 $("mok").onclick = () => {
  const mm = mmCalc(); if (!mm || shots.length >= 4) return; const kind = $("mkind").value; mdraw(true);
  mcv.toBlob(b => { if (!b) return; b.mm = { kind, mm: mm.toFixed(1) }; shots.push(b); mergedUrl = ""; $("merged").hidden = true; exitMeasure(); drawShots(); camCount(); if (navigator.vibrate) navigator.vibrate(30); }, "image/jpeg", 0.9);
+};
+
+// ---- إضافة قسم جديد (المالك) ----
+$("addDept").onclick = () => {
+ const n = $("newDept").value.trim(); if (!n) return;
+ if (DEPTS.includes(n)) { flash("القسم موجود بالفعل."); return; }
+ localStorage.setItem("xdepts", JSON.stringify([...extraDepts(), n])); $("newDept").value = ""; fillDepts(); $("fdept").value = n; flash("تمت إضافة القسم: " + n);
 };
