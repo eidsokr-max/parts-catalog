@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header><h1>قطع غيار ومعدات</h1><button id="ownerBtn" class="btn sec" type="button">دخول المالك</button></header>
+<header><h1>قطع غيار ومعدات</h1><button id="ownerBtn" class="btn sec" type="button">إدارة المخزن</button></header>
 <main>
   <div id="cfgWarn" class="note" hidden>لسه ماتحطتش إعدادات Firebase في firebase-config.js</div>
   <input id="q" class="inp" placeholder="ابحث باسم القطعة أو رقمها">
@@ -18,7 +18,7 @@
   <p id="empty" class="hint" hidden>مفيش نتائج.</p>
 
   <section id="login" class="panel" hidden>
-    <h2>دخول المالك</h2>
+    <h2>إدارة المخزن</h2>
     <input id="email" class="inp" type="email" placeholder="الإيميل" autocomplete="username">
     <input id="pass" class="inp" type="password" placeholder="الباسورد" autocomplete="current-password">
     <div class="row"><button id="doLogin" class="btn" type="button">دخول</button><button id="cancelLogin" class="btn sec" type="button">إلغاء</button></div>
@@ -26,7 +26,7 @@
   </section>
 
   <section id="owner" class="panel" hidden>
-    <div class="row"><h2>وضع المالك</h2><button id="logout" class="btn sec" type="button">خروج</button></div>
+    <div class="row"><h2>إدارة المخزن</h2><button id="logout" class="btn sec" type="button">خروج</button></div>
     <h3>إضافة قطعة</h3>
     <p class="hint">اضغط "صوّر لقطة": هتفتح شاشة القياس بالكاميرا. قيس الشيء (اضغط على أوله وآخره)، واضغط "التقاط لقطة بالقياس"، كرر لحد ٤ لقطات من اتجاهات مختلفة، واضغط خروج. بعدها املأ البيانات واحفظ.</p>
     <input id="cam" type="file" accept="image/*" capture="environment" hidden>
