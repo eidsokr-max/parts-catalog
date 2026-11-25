@@ -28,3 +28,6 @@ main{max-width:1040px;margin:0 auto;padding:16px;display:flex;flex-direction:col
 .mbox img{width:100%;border-radius:10px}
 .req{border-top:1px solid #eee;padding:8px 0;display:flex;justify-content:space-between;gap:8px;align-items:center}
 .req.done{opacity:.5}
+
+.low{color:#a15c00;font-weight:600;font-size:13px}
+textarea.inp{resize:vertical;font-family:inherit}
