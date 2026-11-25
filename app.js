@@ -34,7 +34,7 @@ function render() {
   const chips = $("chips"); chips.replaceChildren(...["الكل", ...cats].map(c => el("button", { type: "button", className: "chip" + (c === cat ? " on" : ""), textContent: c, onclick: () => { cat = c; render(); } })));
   $("cats").replaceChildren(...cats.map(c => el("option", { value: c })));
   const q = $("q").value.trim().toLowerCase();
-  const shown = parts.filter(p => (cat === "الكل" || p.cat === cat) && (!deptF || p.dept === deptF) && `${p.name} ${p.code || ""} ${p.cat} ${p.model || ""} ${p.loc || ""} ${p.notes || ""} ${p.dept || ""} ${p.dims || ""}`.toLowerCase().includes(q));
+  const shown = parts.filter(p => (cat === "الكل" || p.cat === cat) && (!deptF || p.dept === deptF) && `${p.name} ${p.code || ""} ${p.cat} ${p.model || ""} ${p.loc || ""} ${p.notes || ""} ${p.dept || ""} ${p.dims || ""} ${p.qtyu ? "تقريبي مش متأكد" : ""}`.toLowerCase().includes(q));
   $("empty").hidden = shown.length > 0;
   $("grid").replaceChildren(...shown.map(p => {
     const img = el("img", { src: p.img, alt: p.name, loading: "lazy", onclick: () => { $("mimg").src = p.img; $("mname").textContent = p.name; $("modal").hidden = false; } });
@@ -45,7 +45,7 @@ function render() {
  ...(p.loc ? [el("div", { className: "meta", textContent: "المكان: " + p.loc })] : []),
  ...(p.dims ? [el("div", { className: "meta", textContent: "المقاس: " + p.dims })] : []),
  ...(p.notes ? [el("div", { className: "meta", textContent: p.notes })] : []),
-      el("div", { className: p.qty > 0 ? "" : "out", textContent: p.qty > 0 ? "متاح: " + p.qty : "خلصت" }),
+      el("div", { className: p.qty > 0 ? "" : "out", textContent: p.qty > 0 ? (p.qtyu ? "متاح: حوالي " + p.qty + " (العدد غير مؤكد)" : "متاح: " + p.qty) : "خلصت" }),
       el("button", { className: "btn wide", type: "button", disabled: p.qty <= 0, textContent: "اطلب", onclick: () => openReq(p) }));
     if (isOwner) card.append(el("div", { className: "row" },
       el("button", { className: "btn sec", type: "button", textContent: "+1", onclick: () => updateDoc(doc(db, "parts", p.id), { qty: p.qty + 1 }) }),
@@ -64,7 +64,7 @@ function renderLow() {
 // ---- edit part ----
 function openEdit(p) {
  editPart = p; $("eerr").textContent = "";
- $("ename").value = p.name; $("ecode").value = p.code || ""; $("ecat").value = p.cat; $("edept").value = p.dept || ""; $("emodel").value = p.model || ""; $("eloc").value = p.loc || ""; $("edims").value = p.dims || ""; $("enotes").value = p.notes || ""; $("eqty").value = p.qty;
+ $("ename").value = p.name; $("ecode").value = p.code || ""; $("ecat").value = p.cat; $("edept").value = p.dept || ""; $("emodel").value = p.model || ""; $("eloc").value = p.loc || ""; $("edims").value = p.dims || ""; $("enotes").value = p.notes || ""; $("eqty").value = p.qty; $("equ").checked = !!p.qtyu;
  $("editModal").hidden = false;
 }
 $("ecancel").onclick = () => $("editModal").hidden = true;
@@ -73,7 +73,7 @@ $("esave").onclick = async () => {
  if (!name || !c) { $("eerr").textContent = "الاسم والتصنيف مطلوبين"; return; }
  $("esave").disabled = true;
  try {
- await updateDoc(doc(db, "parts", editPart.id), { name, code: $("ecode").value.trim(), cat: c, dept: $("edept").value, model: $("emodel").value.trim(), loc: $("eloc").value.trim(), dims: $("edims").value.trim(), notes: $("enotes").value.trim(), qty: Math.max(0, parseInt($("eqty").value) || 0) });
+ await updateDoc(doc(db, "parts", editPart.id), { name, code: $("ecode").value.trim(), cat: c, dept: $("edept").value, model: $("emodel").value.trim(), loc: $("eloc").value.trim(), dims: $("edims").value.trim(), notes: $("enotes").value.trim(), qty: (n => $("equ").checked && !n ? 1 : n)(Math.max(0, parseInt($("eqty").value) || 0)), qtyu: $("equ").checked });
  $("editModal").hidden = true; flash("تم حفظ التعديل.");
  } catch (e) { $("eerr").textContent = "تعذر الحفظ: " + e.message; }
  $("esave").disabled = false;
@@ -86,7 +86,7 @@ function download(name, rows) {
  const a = el("a", { href: URL.createObjectURL(blob), download: name }); document.body.append(a); a.click(); a.remove();
 }
 const stamp = () => new Date().toISOString().slice(0, 10);
-$("expParts").onclick = () => download(`parts-${stamp()}.csv`, [["الاسم", "رقم القطعة", "التصنيف", "القسم", "الموديل", "المكان", "المقاس", "ملاحظات", "الكمية"], ...parts.map(p => [p.name, p.code, p.cat, p.dept, p.model, p.loc, p.dims, p.notes, p.qty])]);
+$("expParts").onclick = () => download(`parts-${stamp()}.csv`, [["الاسم", "رقم القطعة", "التصنيف", "القسم", "الموديل", "المكان", "المقاس", "ملاحظات", "الكمية", "العدد مؤكد؟"], ...parts.map(p => [p.name, p.code, p.cat, p.dept, p.model, p.loc, p.dims, p.notes, p.qtyu ? p.qty + " (تقريبي)" : p.qty, p.qtyu ? "لا" : "نعم"])]);
 $("expReqs").onclick = () => download(`requests-${stamp()}.csv`, [["القطعة", "اسم الطالب", "قسم الطالب", "رقم/إيميل", "الوقت", "تم التسليم"], ...reqs.map(r => [r.partName, r.name, r.dept, r.phone, r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString("ar-EG") : "", r.done ? "نعم" : "لا"])]);
 $("mclose").onclick = () => $("modal").hidden = true;
 
@@ -168,9 +168,9 @@ const checkSave = () => $("save").disabled = !(mergedUrl && $("fname").value.tri
 ["fname", "fcat"].forEach(i => $(i).oninput = checkSave);
 $("save").onclick = async () => {
   $("save").disabled = true; $("saveErr").textContent = "";
-  const done = () => { shots = []; mergedUrl = ""; $("merged").hidden = true; ["fname", "fcode", "fcat", "fmodel", "floc", "fnotes", "fdims"].forEach(i => $(i).value = ""); dimsEdited = false; $("fdept").value = ""; $("fqty").value = "1"; drawShots(); flash("تمت إضافة القطعة."); localStorage.removeItem("draft"); };
+  const done = () => { shots = []; mergedUrl = ""; $("merged").hidden = true; ["fname", "fcode", "fcat", "fmodel", "floc", "fnotes", "fdims"].forEach(i => $(i).value = ""); dimsEdited = false; $("fdept").value = ""; $("fqty").value = "1"; $("fqtyu").checked = false; drawShots(); flash("تمت إضافة القطعة."); localStorage.removeItem("draft"); localStorage.removeItem("draftu"); };
   try {
-    await addDoc(collection(db, "parts"), { name: $("fname").value.trim(), code: $("fcode").value.trim(), cat: $("fcat").value.trim(), dept: $("fdept").value, model: $("fmodel").value.trim(), loc: $("floc").value.trim(), dims: $("fdims").value.trim(), notes: $("fnotes").value.trim(), qty: Math.max(0, parseInt($("fqty").value) || 0), img: mergedUrl, createdAt: serverTimestamp() });
+    await addDoc(collection(db, "parts"), { name: $("fname").value.trim(), code: $("fcode").value.trim(), cat: $("fcat").value.trim(), dept: $("fdept").value, model: $("fmodel").value.trim(), loc: $("floc").value.trim(), dims: $("fdims").value.trim(), notes: $("fnotes").value.trim(), qty: (n => $("fqtyu").checked && !n ? 1 : n)(Math.max(0, parseInt($("fqty").value) || 0)), qtyu: $("fqtyu").checked, img: mergedUrl, createdAt: serverTimestamp() });
     done();
   } catch (e) { if (e && e.code === "already-exists") { done(); return; } $("saveErr").textContent = "تعذر الحفظ: " + e.message; checkSave(); }
 };
@@ -186,6 +186,8 @@ async function restoreShots() {
 }
 const DF = ["fname", "fcode", "fcat", "fdept", "fmodel", "floc", "fnotes", "fdims", "fqty"];
 const saveDraft = () => { try { localStorage.setItem("draft", JSON.stringify(DF.map(i => $(i).value))); } catch (e) {} };
+$("fqtyu").addEventListener("change", () => { try { localStorage.setItem("draftu", $("fqtyu").checked ? "1" : ""); } catch (e) {} });
+if (localStorage.getItem("draftu")) $("fqtyu").checked = true;
 DF.forEach(i => { $(i).addEventListener("input", saveDraft); $(i).addEventListener("change", saveDraft); });
 try { const d = JSON.parse(localStorage.getItem("draft") || "null"); if (d) DF.forEach((i, k) => { if (d[k]) $(i).value = d[k]; }); } catch (e) {}
 if ($("fdims").value) dimsEdited = true;
