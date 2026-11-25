@@ -87,7 +87,7 @@ function download(name, rows) {
 }
 const stamp = () => new Date().toISOString().slice(0, 10);
 $("expParts").onclick = () => download(`parts-${stamp()}.csv`, [["الاسم", "رقم القطعة", "التصنيف", "القسم", "الموديل", "المكان", "المقاس", "ملاحظات", "الكمية", "العدد مؤكد؟"], ...parts.map(p => [p.name, p.code, p.cat, p.dept, p.model, p.loc, p.dims, p.notes, p.qtyu ? p.qty + " (تقريبي)" : p.qty, p.qtyu ? "لا" : "نعم"])]);
-$("expReqs").onclick = () => download(`requests-${stamp()}.csv`, [["القطعة", "اسم الطالب", "قسم الطالب", "رقم/إيميل", "الوقت", "تم التسليم"], ...reqs.map(r => [r.partName, r.name, r.dept, r.phone, r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString("ar-EG") : "", r.done ? "نعم" : "لا"])]);
+$("expReqs").onclick = () => download(`requests-${stamp()}.csv`, [["القطعة", "اسم الطالب", "قسم الطالب", "رقم/إيميل", "الوقت", "الحالة", "تم التسليم"], ...reqs.map(r => [r.partName, r.name, r.dept, r.phone, r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString("ar-EG") : "", ({ pending: "في الانتظار", rejected: "مرفوض" })[r.status] || "تمت الموافقة", r.done ? "نعم" : "لا"])]);
 $("mclose").onclick = () => $("modal").hidden = true;
 
 // ---- request a part ----
@@ -98,18 +98,64 @@ $("rsend").onclick = async () => {
   if (!name) { $("rerr").textContent = "اكتب اسمك"; return; }
   $("rsend").disabled = true;
   try {
-    const pref = doc(db, "parts", reqPart.id), rref = doc(collection(db, "requests"));
-    await runTransaction(db, async tx => {
-      const s = await tx.get(pref);
-      if (!s.exists() || s.data().qty <= 0) throw new Error("القطعة خلصت");
-      tx.update(pref, { qty: s.data().qty - 1 });
-      tx.set(rref, { partId: reqPart.id, partName: s.data().name, name, phone, dept: $("rdept").value, createdAt: serverTimestamp(), done: false });
-    });
+    const cur = parts.find(x => x.id === reqPart.id);
+    if (!cur || cur.qty <= 0) throw new Error("القطعة خلصت");
+    await addDoc(collection(db, "requests"), { partId: reqPart.id, partName: cur.name, name, phone, dept: $("rdept").value, qty: 1, status: "pending", createdAt: serverTimestamp(), done: false });
     localStorage.setItem("rname", name); localStorage.setItem("rphone", phone); localStorage.setItem("rdept", $("rdept").value);
-    $("reqModal").hidden = true; flash("تم تسجيل طلبك. هيتواصل معاك المسؤول.");
+    $("reqModal").hidden = true; flash("تم إرسال طلبك. المسؤول هيراجعه، والكمية بتنقص بعد موافقته.");
   } catch (e) { $("rerr").textContent = e.message; }
   $("rsend").disabled = false;
 };
+
+// ---- موافقة / رفض الطلبات: الكمية بتنقص بعد الموافقة بس ----
+const badge = el("span", { id: "reqBadge", className: "badge", hidden: true, title: "طلبات في انتظار موافقتك" });
+$("ownerBtn").after(badge);
+const baseTitle = document.title;
+function setBadge(n) { badge.textContent = n; badge.hidden = !n; document.title = n ? "(" + n + ") " + baseTitle : baseTitle; }
+// إشعار المتصفح: بيشتغل والصفحة مفتوحة أو في الخلفية. مش بيوصل لو المتصفح اتقفل خالص.
+let reqSeen = false, swReg = null, ac = null;
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").then(r => swReg = r).catch(() => {});
+const beep = () => { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(), g = ac.createGain(); o.connect(g); g.connect(ac.destination); o.frequency.value = 880; g.gain.value = 0.2; o.start(); o.stop(ac.currentTime + 0.35); } catch (e) {} };
+async function notify(title, body) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  const opt = { body, vibrate: [200, 100, 200, 100, 300], tag: "newreq", renotify: true };
+  try { if (swReg) { await swReg.showNotification(title, opt); return; } } catch (e) {}
+  try { new Notification(title, opt); } catch (e) {}
+}
+const notifBtn = el("button", { className: "btn sec wide", type: "button" });
+const updNotif = () => { const p = "Notification" in window ? Notification.permission : "none"; notifBtn.textContent = p === "granted" ? "إشعارات المتصفح شغالة ✓" : p === "denied" ? "الإشعارات مقفولة من إعدادات المتصفح" : p === "none" ? "المتصفح مش بيدعم الإشعارات" : "فعّل إشعارات المتصفح"; };
+notifBtn.onclick = async () => { beep(); if (!("Notification" in window)) return; try { await Notification.requestPermission(); } catch (e) {} updNotif(); notify("تم تفعيل الإشعارات", "هيوصلك إشعار لما حد يطلب قطعة."); };
+updNotif(); $("reqs").before(notifBtn);
+async function approveReq(ref) {
+  let approx = false;
+  try {
+    await runTransaction(db, async tx => {
+      const rs = await tx.get(ref);
+      if (!rs.exists()) throw new Error("الطلب اتحذف");
+      const r = rs.data();
+      if ((r.status || "approved") !== "pending") throw new Error("الطلب ده اتعالج قبل كده");
+      const pref = doc(db, "parts", r.partId), ps = await tx.get(pref);
+      if (!ps.exists()) throw new Error("القطعة اتحذفت");
+      const p = ps.data(), need = r.qty || 1;
+      if (p.qty < need && !p.qtyu) throw new Error("الكمية المتاحة (" + p.qty + ") أقل من المطلوب (" + need + "). ارفض الطلب أو عدّل الكمية الأول.");
+      approx = !!p.qtyu;
+      tx.update(pref, { qty: Math.max(0, p.qty - need) });
+      tx.update(ref, { status: "approved", decidedAt: serverTimestamp() });
+    });
+    flash(approx ? "تمت الموافقة ونقصت الكمية. العدد كان تقريبي، راجع الكمية الفعلية." : "تمت الموافقة ونقصت الكمية.");
+  } catch (e) { flash("تعذرت الموافقة: " + e.message); }
+}
+async function rejectReq(ref) {
+  try {
+    await runTransaction(db, async tx => {
+      const rs = await tx.get(ref);
+      if (!rs.exists()) throw new Error("الطلب اتحذف");
+      if ((rs.data().status || "approved") !== "pending") throw new Error("الطلب ده اتعالج قبل كده");
+      tx.update(ref, { status: "rejected", decidedAt: serverTimestamp() });
+    });
+    flash("تم رفض الطلب. الكمية زي ما هي.");
+  } catch (e) { flash("تعذر الرفض: " + e.message); }
+}
 
 // ---- owner login ----
 $("ownerBtn").onclick = () => { if (isOwner) $("owner").scrollIntoView(); else { $("login").hidden = false; $("email").focus(); } };
@@ -117,16 +163,26 @@ $("cancelLogin").onclick = () => $("login").hidden = true;
 $("doLogin").onclick = async () => { $("loginErr").textContent = ""; try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); $("pass").value = ""; } catch { $("loginErr").textContent = "الإيميل أو الباسورد غلط"; } };
 $("logout").onclick = () => signOut(auth);
 onAuthStateChanged(auth, u => {
-  isOwner = !!u; $("owner").hidden = !u; $("login").hidden = true; $("ownerBtn").textContent = u ? "وضع المالك" : "دخول المالك";
+  isOwner = !!u; $("owner").hidden = !u; $("login").hidden = true; $("ownerBtn").textContent = "إدارة المخزن";
   if (unsubReq) { unsubReq(); unsubReq = null; }
+  setBadge(0); reqSeen = false;
   if (u) unsubReq = onSnapshot(query(collection(db, "requests"), orderBy("createdAt", "desc")), s => {
-    $("reqs").replaceChildren(...((reqs = s.docs.map(d => d.data()), s.empty) ? [el("p", { className: "hint", textContent: "مفيش طلبات." })] : s.docs.map(d => {
-      const r = d.data(), t = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString("ar-EG") : "";
-      return el("div", { className: "req" + (r.done ? " done" : "") },
-        el("div", {}, el("div", { className: "name", textContent: `${r.partName} ← ${r.name}` }), el("div", { className: "meta", textContent: `${r.dept ? r.dept + " · " : ""}${r.phone || "بدون رقم"} · ${t}` })),
+    const docs = s.docs, st = d => d.data().status || "approved"; // الطلبات القديمة (قبل نظام الموافقة) اتخصمت فعلًا
+    reqs = docs.map(d => d.data());
+    const ordered = [...docs.filter(d => st(d) === "pending"), ...docs.filter(d => st(d) !== "pending")];
+    if (!reqSeen) reqSeen = true; else s.docChanges().forEach(c => { const r = c.doc.data(); if (c.type === "added" && r.status === "pending") { notify("طلب جديد: " + r.partName, r.name + (r.dept ? " (" + r.dept + ")" : "") + " طلب القطعة دي. افتح إدارة المخزن للموافقة."); beep(); } });
+    setBadge(docs.filter(d => st(d) === "pending").length);
+    $("reqs").replaceChildren(...(s.empty ? [el("p", { className: "hint", textContent: "مفيش طلبات." })] : ordered.map(d => {
+      const r = d.data(), t = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString("ar-EG") : "", sx = st(d);
+      const label = sx === "pending" ? "في انتظار موافقتك" : sx === "rejected" ? "مرفوض" : "تمت الموافقة";
+      return el("div", { className: "req" + (r.done ? " done" : "") + (sx === "pending" ? " pending" : "") },
+        el("div", {}, el("div", { className: "name", textContent: `${r.partName} ← ${r.name}` }), el("div", { className: "meta", textContent: `${r.dept ? r.dept + " · " : ""}${r.phone || "بدون رقم"} · ${t}` }), el("div", { className: "meta st-" + sx, textContent: label })),
         el("div", { className: "row" },
-          el("button", { className: "btn sec", type: "button", textContent: r.done ? "رجّع" : "تم التسليم", onclick: () => updateDoc(d.ref, { done: !r.done }) }),
-          el("button", { className: "btn sec", type: "button", textContent: "حذف", onclick: () => deleteDoc(d.ref) })));
+          ...(sx === "pending" ? [
+            el("button", { className: "btn", type: "button", textContent: "موافقة", onclick: e => { e.target.disabled = true; approveReq(d.ref).finally(() => e.target.disabled = false); } }),
+            el("button", { className: "btn sec", type: "button", textContent: "رفض", onclick: () => rejectReq(d.ref) })
+          ] : sx === "approved" ? [el("button", { className: "btn sec", type: "button", textContent: r.done ? "رجّع" : "تم التسليم", onclick: () => updateDoc(d.ref, { done: !r.done }) })] : []),
+          el("button", { className: "btn sec", type: "button", textContent: "حذف", onclick: () => { if (confirm("حذف الطلب؟")) deleteDoc(d.ref); } })));
     })));
   }, e => flash("تعذر تحميل الطلبات: " + e.message));
   render();
