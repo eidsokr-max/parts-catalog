@@ -34,6 +34,13 @@ select,input[type=number]{font:inherit;padding:9px;border-radius:8px;border:0;ba
 #arMsg{font-size:15px;text-shadow:0 1px 4px #000}
 #arBar{position:absolute;bottom:0;left:0;right:0;display:flex;gap:8px;padding:10px 10px calc(env(safe-area-inset-bottom) + 14px);pointer-events:auto}
 #arBar button{flex:1;font-size:16px}
+#arBar{flex-wrap:wrap}
+#arPrev{position:absolute;inset:0;background:#000e;display:none;flex-direction:column;pointer-events:auto;padding:calc(env(safe-area-inset-top) + 8px) 8px 8px}
+#arPrev img{flex:1;min-height:0;width:100%;object-fit:contain}
+#arPrev .r{display:flex;gap:8px;margin-top:8px}
+#arPrev .r>*{flex:1;font-size:16px}
+#arPrev select{width:auto}
+#arToast{position:absolute;top:30%;left:10%;right:10%;background:#17a05aee;border-radius:12px;padding:12px;text-align:center;display:none;font-size:16px}
 </style>
 </head>
 <body>
@@ -51,10 +58,16 @@ select,input[type=number]{font:inherit;padding:9px;border-radius:8px;border:0;ba
 ٢) حط النقطة على أول المواسورة واضغط على الشاشة.<br>
 ٣) حرّك الموبايل مع المواسورة والطول بيتكتب لحظي.<br>
 ٤) حط النقطة على آخر المواسورة واضغط تاني، الطول بيثبت.<br>
+<b>للتصوير بره (شمس وضل وأسطح معدن/صناديق خشب):</b> قيس من مسافة ١–٣ متر، امسك الموبايل ثابت، حرّك ببطء، وحط النقطة على أرض الخرسانة جنب الشيء (مش على المعدن اللامع). لو الأرض سادة جدًا اتحرك شوية يمين وشمال قبل ما تضغط. القياس بياخد وسيط آخر ٧ قراءات عشان يقلل الرعشة.<br>
 <b>الدقة:</b> غالبًا ±١ إلى ٣ سم على ١–٢ متر (ممكن أكتر لو السطح ملون واحد أو اللمس بعيد). مش بديل الكاليبر لو محتاج مللي.
 </div>
 </div>
 
+<div class="note" id="calBox"><b>معايرة (بتقلل الغلط المنتظم):</b><br>
+اعمل قياس AR لطول معروف في نفس الظروف والمسافة (متر شريط أو ورقة A4 على الأرض)، اخرج، اكتب الطول الحقيقي واضغط "اضبط".<br>
+آخر قياس خام: <b id="calLast">—</b> · المعامل الحالي: <b id="calF">1.000</b>
+<div class="row"><input id="calReal" type="number" step="0.1" placeholder="الطول الحقيقي بالسم"><button id="calSet" class="pri">اضبط</button><button id="calReset">إلغاء المعايرة</button></div></div>
+<div id="shotsBox" class="note hide"></div>
 <div id="pPh" class="box hide">
 <div class="note">
 ١) صوّر المواسورة <b>من فوق مباشرة</b> (الموبايل مواجه ومواز) ومعاها حاجة معروفة المقاس في نفس المستوى، زي كارت بنك (٨٥٫٦ مم).<br>
@@ -92,7 +105,11 @@ select,input[type=number]{font:inherit;padding:9px;border-radius:8px;border:0;ba
 <div id="arRoot">
 <canvas id="arCv"></canvas>
 <div id="arTop"><div id="arLen">—</div><div id="arMsg"></div></div>
-<div id="arBar"><button id="arUndo">تراجع</button><button id="arNew" class="warn">قياس جديد</button><button id="arExit">خروج</button></div>
+<div id="arBar"><button id="arShot" class="pri" style="flex-basis:100%">📸 التقاط لقطة بالقياس</button><button id="arUndo">تراجع</button><button id="arNew" class="warn">قياس جديد</button><button id="arExit">خروج</button></div>
+<div id="arPrev"><img id="arPrevImg" alt="">
+<div class="r"><select id="arKind"><option>طول</option><option>عرض</option><option>قطر خارجي</option><option>قطر داخلي</option><option>سماكة</option><option>ارتفاع</option></select><button id="arRot">🔄 تدوير</button></div>
+<div class="r"><button id="arUse" class="pri">✔ استخدم اللقطة</button><button id="arRetry">إعادة</button></div></div>
+<div id="arToast"></div>
 </div>
 
 <script>
@@ -115,6 +132,8 @@ function project(proj,view,p,W,H){
   if(c[3]<=0) return null;
   return [(c[0]/c[3]*0.5+0.5)*W,(1-(c[1]/c[3]*0.5+0.5))*H];
 }
+let CAL=parseFloat(localStorage.getItem('arCal'))||1;
+const d3=(a,b)=>dist3(a,b)*CAL;
 window.__m={fmtLen,dist3,project,mul4v};
 
 /* ---------- tabs ---------- */
@@ -149,7 +168,7 @@ function arRender(){
     ctx.strokeStyle=col;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.stroke();
     ctx.fillStyle='#fff';[pa,pb].forEach(q=>{ctx.beginPath();ctx.arc(q[0],q[1],7,0,7);ctx.fill()});
     const mx=(pa[0]+pb[0])/2,my=(pa[1]+pb[1])/2;ctx.font='bold 22px sans-serif';ctx.textAlign='center';
-    const t=fmtLen(dist3(a,b));ctx.lineWidth=5;ctx.strokeStyle='#000';ctx.strokeText(t,mx,my-12);ctx.fillStyle='#ffd24a';ctx.fillText(t,mx,my-12)};
+    const t=fmtLen(d3(a,b));ctx.lineWidth=5;ctx.strokeStyle='#000';ctx.strokeText(t,mx,my-12);ctx.fillStyle='#ffd24a';ctx.fillText(t,mx,my-12)};
   A.list.forEach(m=>draw(m[0],m[1],'#17a05a'));
   if(A.start&&!A.end&&A.hit)draw(A.start,A.hit,'#ffd24a');
   if(A.start&&A.end)draw(A.start,A.end,'#ffd24a');
@@ -159,8 +178,8 @@ function arRender(){
 }
 function arUpdateText(){
   let t='—';
-  if(A.start&&A.end)t=fmtLen(dist3(A.start,A.end));
-  else if(A.start&&A.hit)t=fmtLen(dist3(A.start,A.hit));
+  if(A.start&&A.end)t=fmtLen(d3(A.start,A.end));
+  else if(A.start&&A.hit)t=fmtLen(d3(A.start,A.hit));
   $('arLen').textContent=t;
   if(!A.hit)arMsg('حرّك الموبايل ببطء على السطح لحد ما النقطة تظهر');
   else if(!A.start)arMsg('حط النقطة على أول المواسورة واضغط على الشاشة');
@@ -171,7 +190,7 @@ function onSelect(){
   if(A.end)return;
   if(!A.hit){arMsg('مفيش سطح متتبّع، حرّك الكاميرا شوية');return}
   if(!A.start)A.start=A.hit.slice();
-  else{A.end=A.hit.slice();A.list.push([A.start,A.end]);}
+  else{A.end=A.hit.slice();A.list.push([A.start,A.end]);A.lastRaw=dist3(A.start,A.end);localStorage.setItem('arLastRaw',A.lastRaw)}
   if(navigator.vibrate)navigator.vibrate(30);
   arUpdateText();
 }
@@ -180,28 +199,28 @@ $('arStart').onclick=async()=>{
   const root=$('arRoot');
   try{
     root.style.display='block';
-    const s=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root}});
+    const s=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay','camera-access'],domOverlay:{root}});
     xrSession=s;
     const gl=document.createElement('canvas').getContext('webgl',{xrCompatible:true});
     await gl.makeXRCompatible?.();
     s.updateRenderState({baseLayer:new XRWebGLLayer(s,gl)});
-    A.gl=gl;A.refSpace=await s.requestReferenceSpace('local');
+    A.gl=gl;A.glb=null;try{A.glb=new XRWebGLBinding(s,gl)}catch(e){}A.cam=null;A.refSpace=await s.requestReferenceSpace('local');
     const viewer=await s.requestReferenceSpace('viewer');
     A.src=await s.requestHitTestSource({space:viewer});
     A.start=A.end=A.hit=null;A.list=[];arUpdateText();
     s.addEventListener('select',onSelect);
-    s.addEventListener('end',()=>{xrSession=null;root.style.display='none';A.src=null});
+    s.addEventListener('end',()=>{calUi();xrSession=null;root.style.display='none';A.src=null});
     const hist=[];
     const loop=(t,frame)=>{
       if(!xrSession)return;
       xrSession.requestAnimationFrame(loop);
       gl.bindFramebuffer(gl.FRAMEBUFFER,xrSession.renderState.baseLayer.framebuffer);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
       const vp=frame.getViewerPose(A.refSpace);
-      if(vp&&vp.views[0]){A.proj=vp.views[0].projectionMatrix;A.view=vp.views[0].transform.inverse.matrix}
+      if(vp&&vp.views[0]){A.proj=vp.views[0].projectionMatrix;A.view=vp.views[0].transform.inverse.matrix;if(A.wantShot){A.wantShot=false;grabShot(gl,vp.views[0])}}
       const r=A.src&&frame.getHitTestResults(A.src);
       if(r&&r.length){const p=r[0].getPose(A.refSpace);
-        if(p){const q=p.transform.position;hist.push([q.x,q.y,q.z]);if(hist.length>3)hist.shift();
-          A.hit=[0,1,2].map(i=>hist.reduce((s,h)=>s+h[i],0)/hist.length)}}
+        if(p){const q=p.transform.position;hist.push([q.x,q.y,q.z]);if(hist.length>7)hist.shift();
+          A.hit=[0,1,2].map(i=>{const v=hist.map(h=>h[i]).sort((a,b)=>a-b);return v[v.length>>1]})}}
       else{A.hit=null;hist.length=0}
       arUpdateText();arRender();
     };
@@ -215,6 +234,90 @@ $('arExit').onclick=()=>{if(xrSession)xrSession.end()};
 $('arNew').onclick=()=>{A.start=A.end=null;arUpdateText()};
 $('arUndo').onclick=()=>{if(A.end){A.list.pop();A.end=null}else if(A.start){A.start=null}arUpdateText()};
 ['arBar'].forEach(id=>$(id).addEventListener('beforexrselect',e=>e.preventDefault()));
+
+
+/* ---------- capture the measured view ---------- */
+const SH={base:null,meas:[],rot:0,proj:null,view:null,nofb:false};
+function toast(t,ms){const e=$('arToast');e.textContent=t;e.style.display='block';setTimeout(()=>e.style.display='none',ms||3500)}
+function grabShot(gl,view){
+  const cam=view.camera;
+  if(!cam||!A.glb){SH.base=null;A.shotErr='nocam';showPrev();return}
+  try{
+    const tex=A.glb.getCameraImage(cam),w=cam.width,h=cam.height;
+    const fb=gl.createFramebuffer(),old=gl.getParameter(gl.FRAMEBUFFER_BINDING);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+    if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw new Error('fb');
+    const px=new Uint8ClampedArray(w*h*4);gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,px);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,old);gl.deleteFramebuffer(fb);
+    const t=document.createElement('canvas');t.width=w;t.height=h;t.getContext('2d').putImageData(new ImageData(px,w,h),0,0);
+    const b=document.createElement('canvas');b.width=w;b.height=h;const g=b.getContext('2d');g.translate(0,h);g.scale(1,-1);g.drawImage(t,0,0); // readPixels is bottom-up
+    SH.base=b;
+    // auto-rotate guess if camera image orientation differs from the screen
+    SH.rot=((w>h)!==(innerWidth>innerHeight))?1:0;
+  }catch(e){SH.base=null;A.shotErr=String(e.message||e)}
+  SH.meas=A.list.map(m=>[m[0].slice(),m[1].slice()]);
+  if(A.start&&!A.end&&A.hit)SH.meas.push([A.start.slice(),A.hit.slice()]);
+  else if(A.start&&A.end&&!A.list.length)SH.meas.push([A.start.slice(),A.end.slice()]);
+  SH.proj=Array.from(A.proj);SH.view=Array.from(A.view);
+  showPrev();
+}
+function labelOf(){return SH.meas.map(m=>$('arKind').value+' '+fmtLen(d3(m[0],m[1]))).join('، ')}
+function composeShot(){
+  const base=SH.base;let W=base.width,H=base.height;
+  const rot=SH.rot%4,sw=rot%2?H:W,sh=rot%2?W:H,k=Math.min(1,1600/Math.max(sw,sh));
+  const c=document.createElement('canvas');c.width=Math.round(sw*k);c.height=Math.round(sh*k);
+  const g=c.getContext('2d');g.save();g.scale(k,k);g.translate(sw/2,sh/2);g.rotate(rot*Math.PI/2);g.drawImage(base,-W/2,-H/2);g.restore();
+  const CW=c.width,CH=c.height,fs=Math.max(18,Math.round(CW/22)),lw=Math.max(3,Math.round(CW/200));
+  SH.meas.forEach(m=>{
+    const pa=project(SH.proj,SH.view,m[0],CW,CH),pb=project(SH.proj,SH.view,m[1],CW,CH);if(!pa||!pb)return;
+    g.strokeStyle='#ffd24a';g.lineWidth=lw;g.beginPath();g.moveTo(pa[0],pa[1]);g.lineTo(pb[0],pb[1]);g.stroke();
+    g.fillStyle='#fff';[pa,pb].forEach(q=>{g.beginPath();g.arc(q[0],q[1],lw*2,0,7);g.fill()});
+    g.font='bold '+fs+'px sans-serif';g.textAlign='center';const t=$('arKind').value+' '+fmtLen(d3(m[0],m[1]));
+    const x=(pa[0]+pb[0])/2,y=(pa[1]+pb[1])/2-fs*0.5;g.lineWidth=fs/4;g.strokeStyle='#000';g.strokeText(t,x,y);g.fillStyle='#ffd24a';g.fillText(t,x,y)});
+  return c;
+}
+function showPrev(){
+  if(!SH.base){$('arPrev').style.display='none';
+    toast('الكاميرا ما سمحتش بأخد الصورة من جوه الـAR. خد سكرين شوت من الموبايل (زرار الباور + خفض الصوت) واختاره من "من المعرض" في الكتالوج. مقاس القياس بيتسجل برضه.',7000);
+    if(SH.meas.length)savePending(null);return}
+  if(!SH.meas.length){toast('اعمل قياس الأول (اضغط على أول الشيء وآخره) وبعدين التقط',3500);return}
+  $('arPrevImg').src=composeShot().toDataURL('image/jpeg',0.85);$('arPrev').style.display='flex';
+}
+$('arShot').onclick=()=>{if(!A.hit&&!A.end&&!A.list.length){toast('لازم قياس الأول');return}A.wantShot=true};
+$('arRot').onclick=()=>{SH.rot=(SH.rot+1)%4;showPrev()};
+$('arKind').onchange=()=>{if(SH.base)showPrev()};
+$('arRetry').onclick=()=>{$('arPrev').style.display='none'};
+$('arUse').onclick=()=>{savePending(composeShot().toDataURL('image/jpeg',0.82));$('arPrev').style.display='none'};
+function savePending(img){
+  try{
+    const arr=JSON.parse(localStorage.getItem('arShots')||'[]');
+    arr.push({img,dims:SH.meas.map(m=>({kind:$('arKind').value,txt:fmtLen(d3(m[0],m[1]))})),ts:Date.now()});
+    while(arr.length>4)arr.shift();
+    localStorage.setItem('arShots',JSON.stringify(arr));
+    toast(img?'اتحفظت اللقطة ('+arr.length+'). اخرج وارجع للكتالوج وهتلاقيها في وضع المالك.':'اتحفظ المقاس: '+labelOf()+'. هتلاقيه في الكتالوج.',4500);
+    listPending();
+  }catch(e){toast('تعذر الحفظ: '+e.message,5000)}
+}
+function listPending(){
+  const arr=JSON.parse(localStorage.getItem('arShots')||'[]'),b=$('shotsBox');
+  b.classList.toggle('hide',!arr.length);
+  b.innerHTML='لقطات قياس محفوظة جاهزة للكتالوج: <b>'+arr.length+'</b> — <a href="./" style="color:#7fc4ff">افتح الكتالوج</a>';
+}
+function calUi(){
+  $('calF').textContent=CAL.toFixed(3);
+  const r=parseFloat(localStorage.getItem('arLastRaw'));$('calLast').textContent=r?(r*100).toFixed(1)+' سم':'—';
+}
+$('calSet').onclick=()=>{
+  const r=parseFloat(localStorage.getItem('arLastRaw')),real=parseFloat($('calReal').value);
+  if(!(r>0)){alert('اعمل قياس AR الأول');return}
+  if(!(real>0)){alert('اكتب الطول الحقيقي بالسم');return}
+  const f=(real/100)/r;
+  if(f<0.5||f>2){alert('الفرق كبير قوي ('+f.toFixed(2)+')، غالبًا القياس غلط. أعد القياس.');return}
+  CAL=f;localStorage.setItem('arCal',f);calUi();alert('تمت المعايرة. المعامل '+f.toFixed(3));
+};
+$('calReset').onclick=()=>{CAL=1;localStorage.removeItem('arCal');calUi()};
+calUi();listPending();
 
 /* ---------- Photo + reference measuring ---------- */
 const cv=$('cv'),c=cv.getContext('2d');
