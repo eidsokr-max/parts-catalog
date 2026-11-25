@@ -28,17 +28,17 @@
   <section id="owner" class="panel" hidden>
     <div class="row"><h2>وضع المالك</h2><button id="logout" class="btn sec" type="button">خروج</button></div>
     <h3>إضافة قطعة</h3>
-    <p class="hint">صوّر ٣ أو ٤ لقطات من اتجاهات مختلفة، اضغط دمج، املأ البيانات واحفظ.</p>
+    <p class="hint">اضغط "صوّر لقطة": هتفتح شاشة القياس بالكاميرا. قيس الشيء (اضغط على أوله وآخره)، واضغط "التقاط لقطة بالقياس"، كرر لحد ٤ لقطات من اتجاهات مختلفة، واضغط خروج. بعدها املأ البيانات واحفظ.</p>
     <input id="cam" type="file" accept="image/*" capture="environment" hidden>
     <input id="pick" type="file" accept="image/*" multiple hidden>
     <div id="shots" class="shots"></div>
     <div class="row">
       <button id="shoot" class="btn" type="button">📷 صوّر لقطة</button>
+      <button id="plain" class="btn sec" type="button">كاميرا عادية</button>
       <button id="gallery" class="btn sec" type="button">من المعرض</button>
       <button id="clear" class="btn sec" type="button">مسح اللقطات</button>
       <button id="merge" class="btn" type="button" disabled>دمج في صورة واحدة</button>
     </div>
-    <p class="hint">للقياس: افتح 📷 الكاميرا واضغط 📏 قياس، اكتب المسافة بين الموبايل والقطعة بالسنتيمتر، حدد طرفي الشيء على الصورة الحية، وبعدين تثبيت كلقطة. القياس تقريبي.</p>
     <img id="merged" class="merged" alt="الصورة المدمجة" hidden>
     <input id="fname" class="inp" placeholder="اسم القطعة">
     <input id="fcode" class="inp" placeholder="رقم القطعة (اختياري)">
@@ -87,13 +87,15 @@
   <div class="row"><button id="esave" class="btn" type="button">حفظ التعديل</button><button id="ecancel" class="btn sec" type="button">إلغاء</button></div>
   <p id="eerr" class="err"></p>
 </div></div>
-<div id="camModal" class="modal cammodal" hidden><div class="camwrap">
-  <video id="live" playsinline muted autoplay></video><div id="camFlash" class="camflash"></div>
-  <div class="camcount" id="camCount">0 / 4</div>
-  <canvas id="mcv" class="mcv" hidden></canvas><div id="mstat" class="mstat" hidden></div>
-  <div id="mrow" class="camrow mrow" hidden><select id="mkind" class="inp"><option>طول</option><option>عرض</option><option>قطر خارجي</option><option>قطر داخلي</option><option>سماكة</option><option>ارتفاع</option></select><input id="mref" class="inp" type="number" inputmode="decimal" min="1" placeholder="المسافة سم"><button id="mcal" class="btn sec camb" type="button" disabled>معايرة</button><button id="mreset" class="btn sec camb" type="button">إعادة</button><button id="mback" class="btn sec camb" type="button">رجوع</button><button id="mok" class="btn camb" type="button" disabled>تثبيت كلقطة</button></div>
-  <div class="camrow" id="crow"><button id="camCancel" class="btn sec camb" type="button">إلغاء</button><button id="measureBtn" class="btn sec camb" type="button">📏 قياس</button><button id="snap" class="snap" type="button" aria-label="التقاط"></button><button id="camDone" class="btn camb" type="button">تم</button></div>
-</div></div>
+<div id="arRoot">
+<canvas id="arCv"></canvas>
+<div id="arTop"><div id="arLen">—</div><div id="arMsg"></div><div id="arCount" class="arcount"></div></div>
+<div id="arBar"><button id="arShot" class="pri" type="button" style="flex-basis:100%">📸 التقاط لقطة بالقياس</button><button id="arUndo" type="button">تراجع</button><button id="arNew" class="warn" type="button">قياس جديد</button><button id="arExit" type="button">خروج</button></div>
+<div id="arPrev"><img id="arPrevImg" alt="">
+<div class="r"><select id="arKind"><option>طول</option><option>عرض</option><option>قطر خارجي</option><option>قطر داخلي</option><option>سماكة</option><option>ارتفاع</option></select><button id="arRot" type="button">🔄 تدوير</button></div>
+<div class="r"><button id="arUse" class="pri" type="button">✔ استخدم اللقطة</button><button id="arRetry" type="button">إعادة</button></div></div>
+<div id="arToast"></div>
+</div>
 <script type="module" src="app.js"></script>
 </body>
 </html>
