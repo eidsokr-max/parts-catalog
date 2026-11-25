@@ -127,7 +127,7 @@ onAuthStateChanged(auth, u => {
 
 // ---- add part: capture 3-4 shots, merge ----
 let shots = [], mergedUrl = "", dimsEdited = false;
-const dimsOf = () => shots.filter(b => b.mm).map(b => b.mm.kind + " " + b.mm.mm + " مم").join("، ");
+const dimsOf = () => shots.filter(b => b.mm).map(b => b.mm.txt || (b.mm.kind + " " + b.mm.mm + " مم")).join("، ");
 const drawShots = () => {
   $("shots").replaceChildren(...[0, 1, 2, 3].map(i => el("div", { className: "shot" }, shots[i] ? el("img", { src: URL.createObjectURL(shots[i]), alt: "لقطة " + (i + 1) }) : "لقطة " + (i + 1) + (i > 2 ? " (اختياري)" : ""))));
   $("merge").disabled = shots.length < 3; $("shoot").disabled = $("gallery").disabled = shots.length >= 4; if (!dimsEdited) $("fdims").value = dimsOf(); checkSave();
@@ -225,3 +225,25 @@ $("mok").onclick = () => {
  const mm = mmCalc(); if (!mm || shots.length >= 4) return; const kind = $("mkind").value; mdraw(true);
  mcv.toBlob(b => { if (!b) return; b.mm = { kind, mm: mm.toFixed(1) }; shots.push(b); mergedUrl = ""; $("merged").hidden = true; exitMeasure(); drawShots(); camCount(); if (navigator.vibrate) navigator.vibrate(30); }, "image/jpeg", 0.9);
 };
+
+// ---- لقطات قياس AR جاهزة من صفحة measure.html (بتتخزن في المتصفح وبتتضاف هنا) ----
+const arList = () => { try { return JSON.parse(localStorage.getItem("arShots") || "[]"); } catch { return []; } };
+function drawArPend() {
+ const a = arList(); $("arPend").hidden = !a.length || !isOwner;
+ $("arPendTxt").textContent = "في " + a.length + " لقطة/قياس AR جاهز: " + a.map(x => x.dims.map(d => d.kind + " " + d.txt).join("، ")).join(" | ");
+}
+$("arAdd").onclick = async () => {
+ const a = arList(), keep = [];
+ for (const x of a) {
+  const txt = x.dims.map(d => d.kind + " " + d.txt).join("، ");
+  if (x.img) {
+   if (shots.length >= 4) { keep.push(x); continue; }
+   const b = await (await fetch(x.img)).blob(); b.mm = { kind: "", mm: "", txt }; shots.push(b); mergedUrl = ""; $("merged").hidden = true;
+  } else if (!dimsEdited) { const cur = $("fdims").value.trim(); $("fdims").value = cur ? cur + "، " + txt : txt; dimsEdited = true; }
+ }
+ if (keep.length) localStorage.setItem("arShots", JSON.stringify(keep)); else localStorage.removeItem("arShots");
+ drawShots(); drawArPend();
+};
+$("arDrop").onclick = () => { localStorage.removeItem("arShots"); drawArPend(); };
+addEventListener("storage", drawArPend); document.addEventListener("visibilitychange", () => { if (!document.hidden) drawArPend(); });
+onAuthStateChanged(auth, () => drawArPend()); drawArPend();
