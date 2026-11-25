@@ -37,10 +37,8 @@
       <button id="gallery" class="btn sec" type="button">من المعرض</button>
       <button id="clear" class="btn sec" type="button">مسح اللقطات</button>
       <button id="merge" class="btn" type="button" disabled>دمج في صورة واحدة</button>
-      <a class="btn sec" href="measure.html" target="_blank">📏 قياس طول بالـAR</a>
     </div>
-    <p class="hint">للقياس وقت التصوير: افتح الكاميرا واضغط 📏 قياس، وحط كارت بنك جنب القطعة.</p>
-    <div id="arPend" class="note" hidden><span id="arPendTxt"></span> <button id="arAdd" class="btn" type="button">إضافة كلقطات</button> <button id="arDrop" class="btn sec" type="button">تجاهل</button></div>
+    <p class="hint">للقياس: افتح 📷 الكاميرا واضغط 📏 قياس، وحط جنب القطعة مرجع معروف الطول (ورقة A4 أو مسطرة). تثبيت القياس بيضيفه كلقطة.</p>
     <img id="merged" class="merged" alt="الصورة المدمجة" hidden>
     <input id="fname" class="inp" placeholder="اسم القطعة">
     <input id="fcode" class="inp" placeholder="رقم القطعة (اختياري)">
@@ -49,7 +47,7 @@
     <select id="fdept" class="inp"></select>
     <input id="fmodel" class="inp" placeholder="الموديل (اختياري)">
     <input id="floc" class="inp" placeholder="مكان القطعة في المخزن (اختياري)">
-    <input id="fdims" class="inp" placeholder="المقاس (بيتملّي من القياس، أو اكتبه: طول 120 مم، قطر 40 مم)">
+    <input id="fdims" class="inp" placeholder="المقاس (بيتملّي من قياس الكاميرا، أو اكتبه: طول 120 مم، قطر 40 مم)">
     <textarea id="fnotes" class="inp" rows="2" placeholder="ملاحظات / وصف (اختياري)"></textarea>
     <label class="lbl" for="fqty">الكمية (العدد الموجود في المخزن)</label>
     <input id="fqty" class="inp" inputmode="numeric" placeholder="الكمية" value="1">
