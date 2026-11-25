@@ -134,7 +134,7 @@ onAuthStateChanged(auth, u => {
 
 // ---- add part: capture 3-4 shots, merge ----
 let shots = [], mergedUrl = "", dimsEdited = false;
-const dimsOf = () => shots.filter(b => b.mm).map(b => (b.mm.kind + " " + b.mm.mm + " مم")).join("، ");
+const dimsOf = () => shots.filter(b => b.mm).flatMap(b => Array.isArray(b.mm) ? b.mm.map(d => d.kind + " " + d.txt) : [b.mm.kind + " " + b.mm.mm + " مم"]).join("، ");
 const drawShots = () => {
   $("shots").replaceChildren(...[0, 1, 2, 3].map(i => el("div", { className: "shot" }, shots[i] ? el("img", { src: URL.createObjectURL(shots[i]), alt: "لقطة " + (i + 1) }) : "لقطة " + (i + 1) + (i > 2 ? " (اختياري)" : ""))));
   $("merge").disabled = shots.length < 3; $("shoot").disabled = $("gallery").disabled = shots.length >= 4; if (!dimsEdited) $("fdims").value = dimsOf(); checkSave(); persistShots();
@@ -142,27 +142,9 @@ const drawShots = () => {
 $("fdims").oninput = () => dimsEdited = true;
 const addFiles = e => { shots = [...shots, ...e.target.files].slice(0, 4); e.target.value = ""; mergedUrl = ""; $("merged").hidden = true; drawShots(); };
 $("cam").onchange = addFiles; $("pick").onchange = addFiles;
-// كاميرا مباشرة: جلسة واحدة مفتوحة لكل اللقطات، ولو الإذن اترفض بنرجع لكاميرا الملفات
-let stream = null;
-const stopCam = () => { exitMeasure(); if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; $("live").srcObject = null; $("camModal").hidden = true; };
-const camCount = () => { $("camCount").textContent = shots.length + " / 4"; $("snap").disabled = shots.length >= 4; $("camDone").textContent = shots.length >= 3 ? "تم (دمج)" : "تم"; };
-$("shoot").onclick = async () => {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return $("cam").click();
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-  } catch (e) { return $("cam").click(); }
-  $("live").srcObject = stream; $("camModal").hidden = false; camCount();
-  try { await $("live").play(); } catch (e) {}
-};
-$("snap").onclick = () => {
-  const v = $("live"); if (!v.videoWidth || shots.length >= 4) return;
-  const k = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight)), c = document.createElement("canvas");
-  c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k); c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
-  c.toBlob(b => { if (!b || shots.length >= 4) return; shots.push(b); mergedUrl = ""; $("merged").hidden = true; drawShots(); camCount();
-    $("camFlash").classList.add("on"); setTimeout(() => $("camFlash").classList.remove("on"), 120); if (navigator.vibrate) navigator.vibrate(30); }, "image/jpeg", 0.9);
-};
-$("camDone").onclick = () => { stopCam(); if (shots.length >= 3) $("merge").click(); };
-$("camCancel").onclick = stopCam;
+// ---- الكاميرا = شاشة القياس AR (WebXR): قيس، التقط لقطة بالقياس، كرر لحد ٤ لقطات، وارجع للفورم ----
+$("shoot").onclick = () => startAR();
+$("plain").onclick = () => $("cam").click();
 $("gallery").onclick = () => $("pick").click();
 $("clear").onclick = () => { dimsEdited = false; shots = []; mergedUrl = ""; $("merged").hidden = true; drawShots(); };
 const loadImg = f => new Promise((res, rej) => { const u = URL.createObjectURL(f), i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = u; });
@@ -209,55 +191,157 @@ try { const d = JSON.parse(localStorage.getItem("draft") || "null"); if (d) DF.f
 if ($("fdims").value) dimsEdited = true;
 restoreShots();
 
-// ---- قياس لحظي داخل الكاميرا: الصورة الحية شغالة، حدد نقطتين، والرقم يتحسب من المسافة بين الموبايل والقطعة، وبعدين تثبيت كلقطة ----
-// الدقة تقريبية: المتصفح مش بيدي عمق حقيقي، فالقياس بيعتمد على المسافة اللي تكتبها وعلى زاوية رؤية تقديرية للكاميرا (قابلة للمعايرة).
-const mcv = $("mcv"); let mp = [], mdrag = -1, mloop = 0, mcal = parseFloat(localStorage.getItem("mcal")) || 1;
-const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
-const mmCalc = () => { const d = parseFloat($("mref").value); if (mp.length < 2 || !(d > 0)) return null; return dist(mp[0], mp[1]) * (d * 10 * 1.3248 / Math.max(mcv.width, mcv.height)) * mcal; };
-function mdraw(final) {
- const v = $("live"); if (!v.videoWidth) return;
- const g = mcv.getContext("2d"), W = mcv.width, fs = Math.round(W / 24), lw = Math.max(2, Math.round(W / 400)), r = Math.round(W / 55);
- g.drawImage(v, 0, 0, W, mcv.height);
- const mm = mmCalc(), kind = $("mkind").value;
- if (mp.length) {
-  g.lineWidth = lw; g.strokeStyle = "#00e5ff";
-  if (mp[1]) { g.beginPath(); g.moveTo(mp[0].x, mp[0].y); g.lineTo(mp[1].x, mp[1].y); g.stroke(); }
-  if (!final) mp.forEach(p => { g.beginPath(); g.arc(p.x, p.y, r, 0, 7); g.stroke(); });
-  if (mp[1] && mm) { const t = kind + " " + mm.toFixed(1) + " مم", x = (mp[0].x + mp[1].x) / 2, y = (mp[0].y + mp[1].y) / 2 - fs * 0.6;
-   g.font = "bold " + fs + "px sans-serif"; g.direction = "rtl"; g.textAlign = "center"; g.lineWidth = fs / 4; g.strokeStyle = "#000"; g.strokeText(t, x, y); g.fillStyle = "#00e5ff"; g.fillText(t, x, y); }
- }
- $("mstat").textContent = !(parseFloat($("mref").value) > 0) ? "اكتب المسافة بين الموبايل والقطعة بالسنتيمتر" : mp.length < 2 ? (mp.length ? "اضغط على نهاية الشيء" : "اضغط على بداية الشيء المراد قياسه") : (mm.toFixed(1) + " مم (تقريبي). اسحب أي نقطة للتعديل، وبعدين تثبيت.");
- $("mok").disabled = !mm; $("mcal").disabled = !mm;
-}
-const mtick = () => { mdraw(); mloop = requestAnimationFrame(mtick); };
-const mpos = e => { const r = mcv.getBoundingClientRect(), s = Math.min(r.width / mcv.width, r.height / mcv.height); return { x: (e.clientX - r.left - (r.width - mcv.width * s) / 2) / s, y: (e.clientY - r.top - (r.height - mcv.height * s) / 2) / s, s }; };
-mcv.onpointerdown = e => { const p = mpos(e); mdrag = mp.findIndex(q => dist(p, q) < 40 / p.s); if (mdrag < 0 && mp.length < 2) { mp.push({ x: p.x, y: p.y }); mdrag = mp.length - 1; } if (mdrag >= 0) mcv.setPointerCapture(e.pointerId); };
-mcv.onpointermove = e => { if (mdrag < 0) return; const p = mpos(e); mp[mdrag] = { x: p.x, y: p.y }; };
-mcv.onpointerup = mcv.onpointercancel = () => { mdrag = -1; };
-function exitMeasure() { cancelAnimationFrame(mloop); mcv.hidden = $("mstat").hidden = $("mrow").hidden = true; $("crow").hidden = false; $("camCount").hidden = false; $("live").hidden = false; mp = []; }
-$("measureBtn").onclick = () => {
- const v = $("live"); if (!v.videoWidth || shots.length >= 4) return;
- const k = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
- mcv.width = Math.round(v.videoWidth * k); mcv.height = Math.round(v.videoHeight * k);
- mp = []; mcv.hidden = $("mstat").hidden = $("mrow").hidden = false; $("crow").hidden = true; $("camCount").hidden = true; $("live").hidden = false;
- $("mref").value = localStorage.getItem("mdist") || ""; mtick();
-};
-$("mreset").onclick = () => { mp = []; };
-$("mback").onclick = exitMeasure;
-$("mkind").onchange = () => {};
-$("mref").oninput = () => { localStorage.setItem("mdist", $("mref").value); };
-$("mcal").onclick = () => {
- const mm = mmCalc(), known = parseFloat((prompt("اكتب الطول الحقيقي للي قايس عليه بالمم (مرة واحدة للمعايرة)") || "").replace(",", "."));
- if (mm && known > 0) { mcal *= known / mm; localStorage.setItem("mcal", String(mcal)); }
-};
-$("mok").onclick = () => {
- const mm = mmCalc(); if (!mm || shots.length >= 4) return; const kind = $("mkind").value; mdraw(true);
- mcv.toBlob(b => { if (!b) return; b.mm = { kind, mm: mm.toFixed(1) }; shots.push(b); mergedUrl = ""; $("merged").hidden = true; exitMeasure(); drawShots(); camCount(); if (navigator.vibrate) navigator.vibrate(30); }, "image/jpeg", 0.9);
-};
-
 // ---- إضافة قسم جديد (المالك) ----
 $("addDept").onclick = () => {
  const n = $("newDept").value.trim(); if (!n) return;
  if (DEPTS.includes(n)) { flash("القسم موجود بالفعل."); return; }
  localStorage.setItem("xdepts", JSON.stringify([...extraDepts(), n])); $("newDept").value = ""; fillDepts(); $("fdept").value = n; flash("تمت إضافة القسم: " + n);
+};
+
+
+// ---- AR measuring camera ----
+const fmtLen = m => { const mm = m * 1000; return mm < 1000 ? mm.toFixed(0) + " مم" : (m * 100).toFixed(1) + " سم"; };
+const dist3 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+const mul4v = (m, v) => { const o = [0, 0, 0, 0]; for (let r = 0; r < 4; r++) o[r] = m[r] * v[0] + m[4 + r] * v[1] + m[8 + r] * v[2] + m[12 + r] * v[3]; return o; };
+const project = (proj, view, p, W, H) => { const c = mul4v(proj, mul4v(view, [p[0], p[1], p[2], 1])); if (c[3] <= 0) return null; return [(c[0] / c[3] * 0.5 + 0.5) * W, (1 - (c[1] / c[3] * 0.5 + 0.5)) * H]; };
+let xrSession = null;
+const A = { start: null, end: null, hit: null, list: [], proj: null, view: null, gl: null, glb: null, refSpace: null, src: null, wantShot: false };
+const SH = { base: null, meas: [], rot: 0, proj: null, view: null };
+const arCv = $("arCv"), actx = arCv.getContext("2d");
+const arMsg = t => { $("arMsg").textContent = t; };
+const arToast = (t, ms) => { const e = $("arToast"); e.textContent = t; e.style.display = "block"; setTimeout(() => e.style.display = "none", ms || 3500); };
+function arRender() {
+  const W = arCv.width = innerWidth, H = arCv.height = innerHeight, ctx = actx;
+  ctx.clearRect(0, 0, W, H);
+  const pr = p => p && A.proj ? project(A.proj, A.view, p, W, H) : null;
+  const draw = (a, b, col) => { const pa = pr(a), pb = pr(b); if (!pa || !pb) return;
+    ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pb[0], pb[1]); ctx.stroke();
+    ctx.fillStyle = "#fff"; [pa, pb].forEach(q => { ctx.beginPath(); ctx.arc(q[0], q[1], 7, 0, 7); ctx.fill(); });
+    const mx = (pa[0] + pb[0]) / 2, my = (pa[1] + pb[1]) / 2; ctx.font = "bold 22px sans-serif"; ctx.textAlign = "center";
+    const t = fmtLen(dist3(a, b)); ctx.lineWidth = 5; ctx.strokeStyle = "#000"; ctx.strokeText(t, mx, my - 12); ctx.fillStyle = "#ffd24a"; ctx.fillText(t, mx, my - 12); };
+  A.list.forEach(m => draw(m[0], m[1], "#17a05a"));
+  if (A.start && !A.end && A.hit) draw(A.start, A.hit, "#ffd24a");
+  if (A.start && A.end) draw(A.start, A.end, "#ffd24a");
+  const rp = pr(A.hit) || [W / 2, H / 2];
+  ctx.strokeStyle = A.hit ? "#3df58c" : "#ff6b6b"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(rp[0], rp[1], 18, 0, 7); ctx.moveTo(rp[0] - 26, rp[1]); ctx.lineTo(rp[0] + 26, rp[1]); ctx.moveTo(rp[0], rp[1] - 26); ctx.lineTo(rp[0], rp[1] + 26); ctx.stroke();
+}
+function arUpdateText() {
+  let t = "—";
+  if (A.start && A.end) t = fmtLen(dist3(A.start, A.end)); else if (A.start && A.hit) t = fmtLen(dist3(A.start, A.hit));
+  $("arLen").textContent = t; $("arCount").textContent = "اللقطات: " + shots.length + " / 4";
+  if (!A.hit) arMsg("حرّك الموبايل ببطء على السطح لحد ما النقطة تظهر");
+  else if (!A.start) arMsg("حط النقطة على أول الشيء واضغط على الشاشة");
+  else if (!A.end) arMsg("حرّك مع الشيء، وعند الآخر اضغط تاني");
+  else arMsg('تم. اضغط "قياس جديد" لقياس تاني');
+}
+function onSelect() {
+  if (A.end) return;
+  if (!A.hit) { arMsg("مفيش سطح متتبّع، حرّك الكاميرا شوية"); return; }
+  if (!A.start) A.start = A.hit.slice(); else { A.end = A.hit.slice(); A.list.push([A.start, A.end]); }
+  if (navigator.vibrate) navigator.vibrate(30);
+  arUpdateText();
+}
+async function startAR() {
+  if (shots.length >= 4) { flash("وصلت ٤ لقطات. امسح اللقطات لو عايز تعيد."); return; }
+  if (!navigator.xr) { flash("المتصفح ده مش بيدعم قياس AR. افتح الصفحة من Chrome، أو استخدم زرار الكاميرا العادية."); return; }
+  const root = $("arRoot");
+  try {
+    root.style.display = "block";
+    const s = await navigator.xr.requestSession("immersive-ar", { requiredFeatures: ["hit-test"], optionalFeatures: ["dom-overlay", "camera-access"], domOverlay: { root } });
+    xrSession = s;
+    const gl = document.createElement("canvas").getContext("webgl", { xrCompatible: true });
+    await gl.makeXRCompatible?.();
+    s.updateRenderState({ baseLayer: new XRWebGLLayer(s, gl) });
+    A.gl = gl; A.glb = null; try { A.glb = new XRWebGLBinding(s, gl); } catch (e) {}
+    A.refSpace = await s.requestReferenceSpace("local");
+    const viewer = await s.requestReferenceSpace("viewer");
+    A.src = await s.requestHitTestSource({ space: viewer });
+    A.start = A.end = A.hit = null; A.list = []; A.wantShot = false; $("arPrev").style.display = "none"; arUpdateText();
+    s.addEventListener("select", onSelect);
+    s.addEventListener("end", () => { xrSession = null; root.style.display = "none"; $("arPrev").style.display = "none"; A.src = null; drawShots(); if (shots.length >= 3 && !mergedUrl) $("merge").click(); });
+    const hist = [];
+    const loop = (t, frame) => {
+      if (!xrSession) return;
+      xrSession.requestAnimationFrame(loop);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, xrSession.renderState.baseLayer.framebuffer); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+      const vp = frame.getViewerPose(A.refSpace);
+      if (vp && vp.views[0]) { A.proj = vp.views[0].projectionMatrix; A.view = vp.views[0].transform.inverse.matrix; if (A.wantShot) { A.wantShot = false; grabShot(gl, vp.views[0]); } }
+      const r = A.src && frame.getHitTestResults(A.src);
+      if (r && r.length) { const p = r[0].getPose(A.refSpace);
+        if (p) { const q = p.transform.position; hist.push([q.x, q.y, q.z]); if (hist.length > 7) hist.shift();
+          A.hit = [0, 1, 2].map(i => { const v = hist.map(h => h[i]).sort((a, b) => a - b); return v[v.length >> 1]; }); } }
+      else { A.hit = null; hist.length = 0; }
+      arUpdateText(); arRender();
+    };
+    s.requestAnimationFrame(loop);
+  } catch (e) {
+    root.style.display = "none"; xrSession = null;
+    flash("مقدرتش أشغّل قياس AR: " + (e && e.message ? e.message : e) + ". تأكد إنك في Chrome و\"Google Play Services for AR\" متثبت، أو استخدم زرار الكاميرا العادية.");
+  }
+}
+$("arExit").onclick = () => { if (xrSession) xrSession.end(); };
+$("arNew").onclick = () => { A.start = A.end = null; arUpdateText(); };
+$("arUndo").onclick = () => { if (A.end) { A.list.pop(); A.end = null; } else if (A.start) A.start = null; arUpdateText(); };
+["arBar", "arPrev"].forEach(id => $(id).addEventListener("beforexrselect", e => e.preventDefault()));
+function grabShot(gl, view) {
+  const cam = view.camera;
+  SH.meas = A.list.map(m => [m[0].slice(), m[1].slice()]);
+  if (A.start && !A.end && A.hit) SH.meas.push([A.start.slice(), A.hit.slice()]);
+  SH.proj = Array.from(A.proj); SH.view = Array.from(A.view); SH.base = null;
+  if (cam && A.glb) {
+    try {
+      const tex = A.glb.getCameraImage(cam), w = cam.width, h = cam.height;
+      const fb = gl.createFramebuffer(), old = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error("fb");
+      const px = new Uint8ClampedArray(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, old); gl.deleteFramebuffer(fb);
+      const t = document.createElement("canvas"); t.width = w; t.height = h; t.getContext("2d").putImageData(new ImageData(px, w, h), 0, 0);
+      const b = document.createElement("canvas"); b.width = w; b.height = h; const g = b.getContext("2d"); g.translate(0, h); g.scale(1, -1); g.drawImage(t, 0, 0);
+      SH.base = b; SH.rot = ((w > h) !== (innerWidth > innerHeight)) ? 1 : 0;
+    } catch (e) { SH.base = null; }
+  }
+  showPrev();
+}
+const kindOf = () => $("arKind").value;
+function composeShot() {
+  const base = SH.base; let W = base.width, H = base.height;
+  const rot = SH.rot % 4, sw = rot % 2 ? H : W, sh = rot % 2 ? W : H, k = Math.min(1, 1600 / Math.max(sw, sh));
+  const c = document.createElement("canvas"); c.width = Math.round(sw * k); c.height = Math.round(sh * k);
+  const g = c.getContext("2d"); g.save(); g.scale(k, k); g.translate(sw / 2, sh / 2); g.rotate(rot * Math.PI / 2); g.drawImage(base, -W / 2, -H / 2); g.restore();
+  const CW = c.width, CH = c.height, fs = Math.max(18, Math.round(CW / 22)), lw = Math.max(3, Math.round(CW / 200));
+  SH.meas.forEach(m => {
+    const pa = project(SH.proj, SH.view, m[0], CW, CH), pb = project(SH.proj, SH.view, m[1], CW, CH); if (!pa || !pb) return;
+    g.strokeStyle = "#ffd24a"; g.lineWidth = lw; g.beginPath(); g.moveTo(pa[0], pa[1]); g.lineTo(pb[0], pb[1]); g.stroke();
+    g.fillStyle = "#fff"; [pa, pb].forEach(q => { g.beginPath(); g.arc(q[0], q[1], lw * 2, 0, 7); g.fill(); });
+    g.font = "bold " + fs + "px sans-serif"; g.textAlign = "center"; const t = kindOf() + " " + fmtLen(dist3(m[0], m[1]));
+    const x = (pa[0] + pb[0]) / 2, y = (pa[1] + pb[1]) / 2 - fs * 0.5; g.lineWidth = fs / 4; g.strokeStyle = "#000"; g.strokeText(t, x, y); g.fillStyle = "#ffd24a"; g.fillText(t, x, y);
+  });
+  return c;
+}
+function showPrev() {
+  if (!SH.meas.length) { arToast("اعمل قياس الأول (اضغط على أول الشيء وآخره) وبعدين التقط", 3500); return; }
+  if (!SH.base) {
+    // الموبايل مادّيش صورة الكاميرا من جوه الـAR: نسجل المقاس بس في خانة المقاس، والصورة تتاخد من الكاميرا العادية أو المعرض
+    const txt = SH.meas.map(m => kindOf() + " " + fmtLen(dist3(m[0], m[1]))).join("، ");
+    $("fdims").value = ($("fdims").value ? $("fdims").value + "، " : "") + txt; dimsEdited = true; saveDraft();
+    arToast("الموبايل ما سمحش بأخد الصورة من جوه القياس. اتسجل المقاس: " + txt + ". صوّر الصورة بالكاميرا العادية أو من المعرض.", 7000); return;
+  }
+  $("arPrevImg").src = composeShot().toDataURL("image/jpeg", 0.85); $("arPrev").style.display = "flex";
+}
+$("arShot").onclick = () => { if (shots.length >= 4) { arToast("وصلت ٤ لقطات"); return; } if (!A.hit && !A.end && !A.list.length) { arToast("لازم قياس الأول"); return; } A.wantShot = true; };
+$("arRot").onclick = () => { SH.rot = (SH.rot + 1) % 4; showPrev(); };
+$("arKind").onchange = () => { if (SH.base) showPrev(); };
+$("arRetry").onclick = () => { $("arPrev").style.display = "none"; };
+$("arUse").onclick = () => {
+  const dims = SH.meas.map(m => ({ kind: kindOf(), txt: fmtLen(dist3(m[0], m[1])) }));
+  composeShot().toBlob(b => {
+    if (!b || shots.length >= 4) return;
+    b.mm = dims; shots.push(b); mergedUrl = ""; $("merged").hidden = true; $("arPrev").style.display = "none";
+    A.start = A.end = null; A.list = []; drawShots(); arUpdateText();
+    if (shots.length >= 4) { arToast("٤ لقطات تمام. برجعك للفورم."); setTimeout(() => { if (xrSession) xrSession.end(); }, 900); }
+    else arToast("اتحفظت اللقطة " + shots.length + " من ٤. قيس وصوّر اللقطة اللي بعدها، أو اضغط خروج.", 3000);
+  }, "image/jpeg", 0.85);
 };
