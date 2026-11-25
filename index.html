@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>كتالوج القطع</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><h1>كتالوج القطع والمعدات</h1><button id="ownerBtn" class="btn sec" type="button">دخول المالك</button></header>
+<main>
+  <div id="cfgWarn" class="note" hidden>لسه ماتحطتش إعدادات Firebase في firebase-config.js</div>
+  <input id="q" class="inp" placeholder="ابحث باسم القطعة أو رقمها">
+  <div id="chips" class="chips"></div>
+  <div id="msg" class="msg" hidden role="status"></div>
+  <div id="grid" class="grid"></div>
+  <p id="empty" class="hint" hidden>مفيش نتائج.</p>
+
+  <section id="login" class="panel" hidden>
+    <h2>دخول المالك</h2>
+    <input id="email" class="inp" type="email" placeholder="الإيميل" autocomplete="username">
+    <input id="pass" class="inp" type="password" placeholder="الباسورد" autocomplete="current-password">
+    <div class="row"><button id="doLogin" class="btn" type="button">دخول</button><button id="cancelLogin" class="btn sec" type="button">إلغاء</button></div>
+    <p id="loginErr" class="err"></p>
+  </section>
+
+  <section id="owner" class="panel" hidden>
+    <div class="row"><h2>وضع المالك</h2><button id="logout" class="btn sec" type="button">خروج</button></div>
+    <h3>إضافة قطعة</h3>
+    <p class="hint">صوّر ٣ أو ٤ لقطات من اتجاهات مختلفة، اضغط دمج، املأ البيانات واحفظ.</p>
+    <input id="cam" type="file" accept="image/*" capture="environment" hidden>
+    <input id="pick" type="file" accept="image/*" multiple hidden>
+    <div id="shots" class="shots"></div>
+    <div class="row">
+      <button id="shoot" class="btn" type="button">📷 صوّر لقطة</button>
+      <button id="gallery" class="btn sec" type="button">من المعرض</button>
+      <button id="clear" class="btn sec" type="button">مسح اللقطات</button>
+      <button id="merge" class="btn" type="button" disabled>دمج في صورة واحدة</button>
+    </div>
+    <img id="merged" class="merged" alt="الصورة المدمجة" hidden>
+    <input id="fname" class="inp" placeholder="اسم القطعة">
+    <input id="fcode" class="inp" placeholder="رقم القطعة (اختياري)">
+    <input id="fcat" class="inp" list="cats" placeholder="التصنيف">
+    <datalist id="cats"></datalist>
+    <input id="fqty" class="inp" inputmode="numeric" placeholder="الكمية" value="1">
+    <button id="save" class="btn wide" type="button" disabled>حفظ القطعة</button>
+    <p id="saveErr" class="err"></p>
+    <h3>الطلبات</h3>
+    <div id="reqs"></div>
+  </section>
+</main>
+
+<div id="modal" class="modal" hidden><div class="mbox"><img id="mimg" alt=""><div id="mname" class="name"></div><button id="mclose" class="btn sec" type="button">إغلاق</button></div></div>
+<div id="reqModal" class="modal" hidden><div class="mbox">
+  <div class="name" id="rtitle"></div>
+  <input id="rname" class="inp" placeholder="اسمك" maxlength="60">
+  <input id="rphone" class="inp" placeholder="رقم الموبايل أو الإدارة (اختياري)" maxlength="30">
+  <div class="row"><button id="rsend" class="btn" type="button">إرسال الطلب</button><button id="rcancel" class="btn sec" type="button">إلغاء</button></div>
+  <p id="rerr" class="err"></p>
+</div></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
