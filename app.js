@@ -132,7 +132,28 @@ const drawShots = () => {
 };
 const addFiles = e => { shots = [...shots, ...e.target.files].slice(0, 4); e.target.value = ""; mergedUrl = ""; $("merged").hidden = true; drawShots(); };
 $("cam").onchange = addFiles; $("pick").onchange = addFiles;
-$("shoot").onclick = () => $("cam").click(); $("gallery").onclick = () => $("pick").click();
+// كاميرا مباشرة: جلسة واحدة مفتوحة لكل اللقطات، ولو الإذن اترفض بنرجع لكاميرا الملفات
+let stream = null;
+const stopCam = () => { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; $("live").srcObject = null; $("camModal").hidden = true; };
+const camCount = () => { $("camCount").textContent = shots.length + " / 4"; $("snap").disabled = shots.length >= 4; $("camDone").textContent = shots.length >= 3 ? "تم (دمج)" : "تم"; };
+$("shoot").onclick = async () => {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return $("cam").click();
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+  } catch (e) { return $("cam").click(); }
+  $("live").srcObject = stream; $("camModal").hidden = false; camCount();
+  try { await $("live").play(); } catch (e) {}
+};
+$("snap").onclick = () => {
+  const v = $("live"); if (!v.videoWidth || shots.length >= 4) return;
+  const k = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight)), c = document.createElement("canvas");
+  c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k); c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+  c.toBlob(b => { if (!b || shots.length >= 4) return; shots.push(b); mergedUrl = ""; $("merged").hidden = true; drawShots(); camCount();
+    $("camFlash").classList.add("on"); setTimeout(() => $("camFlash").classList.remove("on"), 120); if (navigator.vibrate) navigator.vibrate(30); }, "image/jpeg", 0.9);
+};
+$("camDone").onclick = () => { stopCam(); if (shots.length >= 3) $("merge").click(); };
+$("camCancel").onclick = stopCam;
+$("gallery").onclick = () => $("pick").click();
 $("clear").onclick = () => { shots = []; mergedUrl = ""; $("merged").hidden = true; drawShots(); };
 const loadImg = f => new Promise((res, rej) => { const u = URL.createObjectURL(f), i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = u; });
 async function combine(files) {
