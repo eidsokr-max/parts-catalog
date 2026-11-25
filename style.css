@@ -111,3 +111,38 @@ main{width:100%;padding:14px 14px 40px}
 .st-pending{color:#d93025;font-weight:700}
 .st-rejected{color:#888}
 .st-approved{color:#17a05a}
+/* Professional color theme and effects */
+:root{--brand:#3b2424;--brand2:#5c3a2e;--accent:#e08a1e;--bg:#f6f2ec}
+body{background:linear-gradient(180deg,#f6f2ec,#efe8de) fixed;color:#2b2320}
+header{background:linear-gradient(120deg,#2e1b1b,#5c3a2e 60%,#7a4a2a);color:#fff;border-bottom:3px solid var(--accent);box-shadow:0 2px 12px #0003}
+header h1{color:#fff;letter-spacing:.2px}
+header .btn.sec{color:#fff;border-color:#ffffff66;background:#ffffff14;transition:background .2s}
+header .btn.sec:hover{background:#ffffff2e}
+.btn{background:linear-gradient(135deg,var(--brand),var(--brand2));box-shadow:0 2px 6px #3b242433;transition:transform .15s,box-shadow .15s,filter .15s}
+.btn:hover:not(:disabled){filter:brightness(1.12);box-shadow:0 4px 10px #3b242440}
+.btn:active:not(:disabled){transform:translateY(1px) scale(.98)}
+.btn.sec{background:#fff;box-shadow:none}
+.btn.sec:hover:not(:disabled){background:#f6ece0;border-color:var(--accent)}
+button.pri{background:linear-gradient(135deg,#17a05a,#118a4b)}
+button.warn{background:linear-gradient(135deg,#b83a46,#8f2733)}
+.inp{transition:border-color .2s,box-shadow .2s}
+.inp:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px #e08a1e33}
+.chip{background:#fff;transition:background .2s,border-color .2s,transform .15s}
+.chip:hover{border-color:var(--accent);transform:translateY(-1px)}
+.chip.on{background:linear-gradient(135deg,var(--brand),var(--brand2));border-color:transparent;box-shadow:0 2px 8px #3b242440}
+.card{border-color:#e8dfd3;border-top:3px solid var(--accent);box-shadow:0 1px 4px #3b24241a;transition:transform .2s,box-shadow .2s,border-color .2s;animation:cardIn .35s ease both}
+.card:hover{transform:translateY(-3px);box-shadow:0 10px 24px #3b242429;border-color:var(--accent)}
+.card img{transition:opacity .2s}
+.card img:hover{opacity:.92}
+.name{color:var(--brand)}
+.panel{border-top:3px solid var(--accent);box-shadow:0 4px 18px #3b242417}
+h2,h3{color:var(--brand)}
+.note,.msg{background:#fdf1de;border:1px solid #f0d9b3;color:#5a3c10}
+.mbox{box-shadow:0 20px 50px #0006;animation:popIn .22s ease both}
+.modal{backdrop-filter:blur(3px)}
+.low{color:#b45f06}
+.badge{animation:pulse 1.8s ease-in-out infinite}
+@keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 #d9302566}50%{box-shadow:0 0 0 6px #d9302500}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
