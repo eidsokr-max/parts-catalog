@@ -9,10 +9,17 @@ const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.crea
 if (firebaseConfig.apiKey === "PASTE_HERE") { $("cfgWarn").hidden = false; throw new Error("firebase config missing"); }
 const app = initializeApp(firebaseConfig), db = getFirestore(app), auth = getAuth(app);
 
+const DEPTS = ["الصيانة العامة", "صيانة IS", "صيانة الكولد إند", "صيانة المكابس", "فريق التغييرات", "التشكيل"];
+const fillDept = (id, first) => { $(id).replaceChildren(el("option", { value: "", textContent: first }), ...DEPTS.map(d => el("option", { value: d, textContent: d }))); };
+fillDept("deptFilter", "كل الأقسام"); fillDept("fdept", "القسم (اختياري)"); fillDept("edept", "القسم"); fillDept("rdept", "قسمك (اختياري)");
+let deptF = "", editPart = null;
+$("deptFilter").onchange = e => { deptF = e.target.value; render(); };
+const minOf = p => Number.isFinite(p.minQty) ? p.minQty : 2;
+const isLow = p => p.qty > 0 && p.qty <= minOf(p);
 let parts = [], cat = "الكل", isOwner = false, reqPart = null, unsubReq = null;
 const flash = t => { const m = $("msg"); m.textContent = t; m.hidden = false; setTimeout(() => m.hidden = true, 6000); };
 
-onSnapshot(collection(db, "parts"), s => { parts = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); render(); },
+onSnapshot(collection(db, "parts"), s => { parts = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); render(); renderLow(); },
   e => flash("تعذر تحميل القطع: " + e.message));
 
 function render() {
@@ -20,27 +27,63 @@ function render() {
   const chips = $("chips"); chips.replaceChildren(...["الكل", ...cats].map(c => el("button", { type: "button", className: "chip" + (c === cat ? " on" : ""), textContent: c, onclick: () => { cat = c; render(); } })));
   $("cats").replaceChildren(...cats.map(c => el("option", { value: c })));
   const q = $("q").value.trim().toLowerCase();
-  const shown = parts.filter(p => (cat === "الكل" || p.cat === cat) && `${p.name} ${p.code || ""} ${p.cat}`.toLowerCase().includes(q));
+  const shown = parts.filter(p => (cat === "الكل" || p.cat === cat) && (!deptF || p.dept === deptF) && `${p.name} ${p.code || ""} ${p.cat} ${p.model || ""} ${p.loc || ""} ${p.notes || ""} ${p.dept || ""}`.toLowerCase().includes(q));
   $("empty").hidden = shown.length > 0;
   $("grid").replaceChildren(...shown.map(p => {
     const img = el("img", { src: p.img, alt: p.name, loading: "lazy", onclick: () => { $("mimg").src = p.img; $("mname").textContent = p.name; $("modal").hidden = false; } });
     const card = el("div", { className: "card" }, img,
       el("div", { className: "name", textContent: p.name }),
-      el("div", { className: "meta", textContent: (p.code ? p.code + " · " : "") + p.cat }),
+      el("div", { className: "meta", textContent: (p.code ? p.code + " · " : "") + p.cat + (p.dept ? " · " + p.dept : "") }),
+ ...(p.model ? [el("div", { className: "meta", textContent: "موديل: " + p.model })] : []),
+ ...(p.loc ? [el("div", { className: "meta", textContent: "المكان: " + p.loc })] : []),
+ ...(p.notes ? [el("div", { className: "meta", textContent: p.notes })] : []),
+ ...(isLow(p) ? [el("div", { className: "low", textContent: "⚠ قربت تخلص" })] : []),
       el("div", { className: p.qty > 0 ? "" : "out", textContent: p.qty > 0 ? "متاح: " + p.qty : "خلصت" }),
       el("button", { className: "btn wide", type: "button", disabled: p.qty <= 0, textContent: "اطلب", onclick: () => openReq(p) }));
     if (isOwner) card.append(el("div", { className: "row" },
       el("button", { className: "btn sec", type: "button", textContent: "+1", onclick: () => updateDoc(doc(db, "parts", p.id), { qty: p.qty + 1 }) }),
       el("button", { className: "btn sec", type: "button", textContent: "-1", disabled: p.qty <= 0, onclick: () => updateDoc(doc(db, "parts", p.id), { qty: p.qty - 1 }) }),
-      el("button", { className: "btn sec", type: "button", textContent: "حذف", onclick: () => { if (confirm("حذف " + p.name + "؟")) deleteDoc(doc(db, "parts", p.id)); } })));
+      el("button", { className: "btn sec", type: "button", textContent: "تعديل", onclick: () => openEdit(p) }),
+ el("button", { className: "btn sec", type: "button", textContent: "حذف", onclick: () => { if (confirm("حذف " + p.name + "؟")) deleteDoc(doc(db, "parts", p.id)); } })));
     return card;
   }));
 }
 $("q").oninput = render;
+function renderLow() {
+ const low = parts.filter(p => p.qty <= minOf(p)).sort((x, y) => x.qty - y.qty);
+ $("lowList").replaceChildren(...(low.length ? low.map(p => el("div", { className: "req" }, el("div", { className: "name", textContent: p.name }), el("div", { className: p.qty > 0 ? "low" : "out", textContent: p.qty > 0 ? "باقي " + p.qty : "خلصت" }))) : [el("p", { className: "hint", textContent: "مفيش قطع قربت تخلص." })]));
+}
+// ---- edit part ----
+function openEdit(p) {
+ editPart = p; $("eerr").textContent = "";
+ $("ename").value = p.name; $("ecode").value = p.code || ""; $("ecat").value = p.cat; $("edept").value = p.dept || ""; $("emodel").value = p.model || ""; $("eloc").value = p.loc || ""; $("enotes").value = p.notes || ""; $("eqty").value = p.qty; $("emin").value = minOf(p);
+ $("editModal").hidden = false;
+}
+$("ecancel").onclick = () => $("editModal").hidden = true;
+$("esave").onclick = async () => {
+ const name = $("ename").value.trim(), c = $("ecat").value.trim();
+ if (!name || !c) { $("eerr").textContent = "الاسم والتصنيف مطلوبين"; return; }
+ $("esave").disabled = true;
+ try {
+ await updateDoc(doc(db, "parts", editPart.id), { name, code: $("ecode").value.trim(), cat: c, dept: $("edept").value, model: $("emodel").value.trim(), loc: $("eloc").value.trim(), notes: $("enotes").value.trim(), qty: Math.max(0, parseInt($("eqty").value) || 0), minQty: Math.max(0, parseInt($("emin").value) || 0) });
+ $("editModal").hidden = true; flash("تم حفظ التعديل.");
+ } catch (e) { $("eerr").textContent = "تعذر الحفظ: " + e.message; }
+ $("esave").disabled = false;
+};
+// ---- export (CSV opens in Excel) ----
+let reqs = [];
+function download(name, rows) {
+ const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+ const blob = new Blob(["\ufeff" + rows.map(r => r.map(esc).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+ const a = el("a", { href: URL.createObjectURL(blob), download: name }); document.body.append(a); a.click(); a.remove();
+}
+const stamp = () => new Date().toISOString().slice(0, 10);
+$("expParts").onclick = () => download(`parts-${stamp()}.csv`, [["الاسم", "رقم القطعة", "التصنيف", "القسم", "الموديل", "المكان", "ملاحظات", "الكمية", "حد التنبيه"], ...parts.map(p => [p.name, p.code, p.cat, p.dept, p.model, p.loc, p.notes, p.qty, minOf(p)])]);
+$("expReqs").onclick = () => download(`requests-${stamp()}.csv`, [["القطعة", "اسم الطالب", "قسم الطالب", "رقم/إيميل", "الوقت", "تم التسليم"], ...reqs.map(r => [r.partName, r.name, r.dept, r.phone, r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString("ar-EG") : "", r.done ? "نعم" : "لا"])]);
 $("mclose").onclick = () => $("modal").hidden = true;
 
 // ---- request a part ----
-function openReq(p) { reqPart = p; $("rtitle").textContent = "طلب: " + p.name; $("rname").value = localStorage.getItem("rname") || ""; $("rphone").value = localStorage.getItem("rphone") || ""; $("rerr").textContent = ""; $("reqModal").hidden = false; }
+function openReq(p) { reqPart = p; $("rtitle").textContent = "طلب: " + p.name; $("rname").value = localStorage.getItem("rname") || ""; $("rphone").value = localStorage.getItem("rphone") || ""; $("rdept").value = localStorage.getItem("rdept") || ""; $("rerr").textContent = ""; $("reqModal").hidden = false; }
 $("rcancel").onclick = () => $("reqModal").hidden = true;
 $("rsend").onclick = async () => {
   const name = $("rname").value.trim(), phone = $("rphone").value.trim();
@@ -52,9 +95,9 @@ $("rsend").onclick = async () => {
       const s = await tx.get(pref);
       if (!s.exists() || s.data().qty <= 0) throw new Error("القطعة خلصت");
       tx.update(pref, { qty: s.data().qty - 1 });
-      tx.set(rref, { partId: reqPart.id, partName: s.data().name, name, phone, createdAt: serverTimestamp(), done: false });
+      tx.set(rref, { partId: reqPart.id, partName: s.data().name, name, phone, dept: $("rdept").value, createdAt: serverTimestamp(), done: false });
     });
-    localStorage.setItem("rname", name); localStorage.setItem("rphone", phone);
+    localStorage.setItem("rname", name); localStorage.setItem("rphone", phone); localStorage.setItem("rdept", $("rdept").value);
     $("reqModal").hidden = true; flash("تم تسجيل طلبك. هيتواصل معاك المسؤول.");
   } catch (e) { $("rerr").textContent = e.message; }
   $("rsend").disabled = false;
@@ -69,10 +112,10 @@ onAuthStateChanged(auth, u => {
   isOwner = !!u; $("owner").hidden = !u; $("login").hidden = true; $("ownerBtn").textContent = u ? "وضع المالك" : "دخول المالك";
   if (unsubReq) { unsubReq(); unsubReq = null; }
   if (u) unsubReq = onSnapshot(query(collection(db, "requests"), orderBy("createdAt", "desc")), s => {
-    $("reqs").replaceChildren(...(s.empty ? [el("p", { className: "hint", textContent: "مفيش طلبات." })] : s.docs.map(d => {
+    $("reqs").replaceChildren(...((reqs = s.docs.map(d => d.data()), s.empty) ? [el("p", { className: "hint", textContent: "مفيش طلبات." })] : s.docs.map(d => {
       const r = d.data(), t = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString("ar-EG") : "";
       return el("div", { className: "req" + (r.done ? " done" : "") },
-        el("div", {}, el("div", { className: "name", textContent: `${r.partName} ← ${r.name}` }), el("div", { className: "meta", textContent: `${r.phone || "بدون رقم"} · ${t}` })),
+        el("div", {}, el("div", { className: "name", textContent: `${r.partName} ← ${r.name}` }), el("div", { className: "meta", textContent: `${r.dept ? r.dept + " · " : ""}${r.phone || "بدون رقم"} · ${t}` })),
         el("div", { className: "row" },
           el("button", { className: "btn sec", type: "button", textContent: r.done ? "رجّع" : "تم التسليم", onclick: () => updateDoc(d.ref, { done: !r.done }) }),
           el("button", { className: "btn sec", type: "button", textContent: "حذف", onclick: () => deleteDoc(d.ref) })));
@@ -113,8 +156,8 @@ const checkSave = () => $("save").disabled = !(mergedUrl && $("fname").value.tri
 $("save").onclick = async () => {
   $("save").disabled = true; $("saveErr").textContent = "";
   try {
-    await addDoc(collection(db, "parts"), { name: $("fname").value.trim(), code: $("fcode").value.trim(), cat: $("fcat").value.trim(), qty: Math.max(0, parseInt($("fqty").value) || 0), img: mergedUrl, createdAt: serverTimestamp() });
-    shots = []; mergedUrl = ""; $("merged").hidden = true; ["fname", "fcode", "fcat"].forEach(i => $(i).value = ""); $("fqty").value = "1"; drawShots(); flash("تمت إضافة القطعة.");
+    await addDoc(collection(db, "parts"), { name: $("fname").value.trim(), code: $("fcode").value.trim(), cat: $("fcat").value.trim(), dept: $("fdept").value, model: $("fmodel").value.trim(), loc: $("floc").value.trim(), notes: $("fnotes").value.trim(), minQty: Math.max(0, parseInt($("fmin").value) || 0), qty: Math.max(0, parseInt($("fqty").value) || 0), img: mergedUrl, createdAt: serverTimestamp() });
+    shots = []; mergedUrl = ""; $("merged").hidden = true; ["fname", "fcode", "fcat", "fmodel", "floc", "fnotes"].forEach(i => $(i).value = ""); $("fdept").value = ""; $("fqty").value = "1"; $("fmin").value = "2"; drawShots(); flash("تمت إضافة القطعة.");
   } catch (e) { $("saveErr").textContent = "تعذر الحفظ: " + e.message; checkSave(); }
 };
 drawShots();
