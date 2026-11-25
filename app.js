@@ -183,41 +183,47 @@ $("save").onclick = async () => {
 };
 drawShots();
 
-// ---- قياس داخل الكاميرا: تجميد اللقطة، كارت مرجع (نقطتين) + نقطتين للقياس، والنتيجة تتكتب على الصورة ----
-// ملاحظة: قياس AR (WebXR) ما ينفعش يشتغل مع كاميرا الصفحة العادية في نفس الوقت، علشان كده القياس هنا بالصورة والكارت.
-const mcv = $("mcv"); let mimg = null, mp = [], mdrag = -1;
+// ---- قياس لحظي داخل الكاميرا: الصورة الحية شغالة، حدد نقطتين، والرقم يتحسب من المسافة بين الموبايل والقطعة، وبعدين تثبيت كلقطة ----
+// الدقة تقريبية: المتصفح مش بيدي عمق حقيقي، فالقياس بيعتمد على المسافة اللي تكتبها وعلى زاوية رؤية تقديرية للكاميرا (قابلة للمعايرة).
+const mcv = $("mcv"); let mp = [], mdrag = -1, mloop = 0, mcal = parseFloat(localStorage.getItem("mcal")) || 1;
 const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
-const mmCalc = () => mp.length < 4 ? null : dist(mp[2], mp[3]) * (parseFloat($("mref").value) / dist(mp[0], mp[1]));
+const mmCalc = () => { const d = parseFloat($("mref").value); if (mp.length < 2 || !(d > 0)) return null; return dist(mp[0], mp[1]) * (d * 10 * 1.3248 / Math.max(mcv.width, mcv.height)) * mcal; };
 function mdraw(final) {
- const g = mcv.getContext("2d"), W = mcv.width, fs = Math.round(W / 28), lw = Math.max(2, Math.round(W / 400)), r = Math.round(W / 55);
- g.drawImage(mimg, 0, 0, W, mcv.height);
+ const v = $("live"); if (!v.videoWidth) return;
+ const g = mcv.getContext("2d"), W = mcv.width, fs = Math.round(W / 24), lw = Math.max(2, Math.round(W / 400)), r = Math.round(W / 55);
+ g.drawImage(v, 0, 0, W, mcv.height);
  const mm = mmCalc(), kind = $("mkind").value;
- [[0, 1, "#ffb300", "مرجع " + $("mref").value + " مم"], [2, 3, "#00e5ff", mm ? kind + " " + mm.toFixed(1) + " مم" : ""]].forEach(([i, j, col, t]) => {
-  if (mp.length <= i) return;
-  g.lineWidth = lw; g.strokeStyle = col;
-  if (mp[j]) { g.beginPath(); g.moveTo(mp[i].x, mp[i].y); g.lineTo(mp[j].x, mp[j].y); g.stroke(); }
-  if (!final) [mp[i], mp[j]].forEach(p => { if (p) { g.beginPath(); g.arc(p.x, p.y, r, 0, 7); g.stroke(); } });
-  if (mp[j] && t) { g.font = "bold " + fs + "px sans-serif"; g.direction = "rtl"; g.textAlign = "center"; const x = (mp[i].x + mp[j].x) / 2, y = (mp[i].y + mp[j].y) / 2 - fs * 0.6;
-   g.lineWidth = fs / 4; g.strokeStyle = "#000"; g.strokeText(t, x, y); g.fillStyle = col; g.fillText(t, x, y); }
- });
- const steps = ["اضغط على أول طرف للكارت (الطول المحدد)", "اضغط على الطرف التاني للكارت", "اضغط على بداية الشيء المراد قياسه", "اضغط على نهايته"];
- $("mstat").textContent = mp.length < 4 ? steps[mp.length] : (mm.toFixed(1) + " مم. اسحب أي نقطة للتعديل، وبعدين تثبيت. (حجم البكسل ≈ " + (parseFloat($("mref").value) / dist(mp[0], mp[1])).toFixed(2) + " مم)");
- $("mok").disabled = !mm;
+ if (mp.length) {
+  g.lineWidth = lw; g.strokeStyle = "#00e5ff";
+  if (mp[1]) { g.beginPath(); g.moveTo(mp[0].x, mp[0].y); g.lineTo(mp[1].x, mp[1].y); g.stroke(); }
+  if (!final) mp.forEach(p => { g.beginPath(); g.arc(p.x, p.y, r, 0, 7); g.stroke(); });
+  if (mp[1] && mm) { const t = kind + " " + mm.toFixed(1) + " مم", x = (mp[0].x + mp[1].x) / 2, y = (mp[0].y + mp[1].y) / 2 - fs * 0.6;
+   g.font = "bold " + fs + "px sans-serif"; g.direction = "rtl"; g.textAlign = "center"; g.lineWidth = fs / 4; g.strokeStyle = "#000"; g.strokeText(t, x, y); g.fillStyle = "#00e5ff"; g.fillText(t, x, y); }
+ }
+ $("mstat").textContent = !(parseFloat($("mref").value) > 0) ? "اكتب المسافة بين الموبايل والقطعة بالسنتيمتر" : mp.length < 2 ? (mp.length ? "اضغط على نهاية الشيء" : "اضغط على بداية الشيء المراد قياسه") : (mm.toFixed(1) + " مم (تقريبي). اسحب أي نقطة للتعديل، وبعدين تثبيت.");
+ $("mok").disabled = !mm; $("mcal").disabled = !mm;
 }
+const mtick = () => { mdraw(); mloop = requestAnimationFrame(mtick); };
 const mpos = e => { const r = mcv.getBoundingClientRect(), s = Math.min(r.width / mcv.width, r.height / mcv.height); return { x: (e.clientX - r.left - (r.width - mcv.width * s) / 2) / s, y: (e.clientY - r.top - (r.height - mcv.height * s) / 2) / s, s }; };
-mcv.onpointerdown = e => { const p = mpos(e); mdrag = mp.findIndex(q => dist(p, q) < 40 / p.s); if (mdrag < 0 && mp.length < 4) { mp.push({ x: p.x, y: p.y }); mdrag = mp.length - 1; } if (mdrag >= 0) mcv.setPointerCapture(e.pointerId); mdraw(); };
-mcv.onpointermove = e => { if (mdrag < 0) return; const p = mpos(e); mp[mdrag] = { x: p.x, y: p.y }; mdraw(); };
+mcv.onpointerdown = e => { const p = mpos(e); mdrag = mp.findIndex(q => dist(p, q) < 40 / p.s); if (mdrag < 0 && mp.length < 2) { mp.push({ x: p.x, y: p.y }); mdrag = mp.length - 1; } if (mdrag >= 0) mcv.setPointerCapture(e.pointerId); };
+mcv.onpointermove = e => { if (mdrag < 0) return; const p = mpos(e); mp[mdrag] = { x: p.x, y: p.y }; };
 mcv.onpointerup = mcv.onpointercancel = () => { mdrag = -1; };
-function exitMeasure() { mcv.hidden = $("mstat").hidden = $("mrow").hidden = true; $("live").hidden = false; $("crow").hidden = false; $("camCount").hidden = false; mimg = null; mp = []; }
+function exitMeasure() { cancelAnimationFrame(mloop); mcv.hidden = $("mstat").hidden = $("mrow").hidden = true; $("crow").hidden = false; $("camCount").hidden = false; $("live").hidden = false; mp = []; }
 $("measureBtn").onclick = () => {
  const v = $("live"); if (!v.videoWidth || shots.length >= 4) return;
- const k = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight)); mimg = document.createElement("canvas");
- mimg.width = mcv.width = Math.round(v.videoWidth * k); mimg.height = mcv.height = Math.round(v.videoHeight * k); mimg.getContext("2d").drawImage(v, 0, 0, mimg.width, mimg.height);
- mp = []; $("live").hidden = true; mcv.hidden = $("mstat").hidden = $("mrow").hidden = false; $("crow").hidden = true; $("camCount").hidden = true; mdraw();
+ const k = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
+ mcv.width = Math.round(v.videoWidth * k); mcv.height = Math.round(v.videoHeight * k);
+ mp = []; mcv.hidden = $("mstat").hidden = $("mrow").hidden = false; $("crow").hidden = true; $("camCount").hidden = true; $("live").hidden = false;
+ $("mref").value = localStorage.getItem("mdist") || ""; mtick();
 };
-$("mreset").onclick = () => { mp = []; mdraw(); };
+$("mreset").onclick = () => { mp = []; };
 $("mback").onclick = exitMeasure;
-$("mkind").onchange = $("mref").onchange = () => mdraw();
+$("mkind").onchange = () => {};
+$("mref").oninput = () => { localStorage.setItem("mdist", $("mref").value); };
+$("mcal").onclick = () => {
+ const mm = mmCalc(), known = parseFloat((prompt("اكتب الطول الحقيقي للي قايس عليه بالمم (مرة واحدة للمعايرة)") || "").replace(",", "."));
+ if (mm && known > 0) { mcal *= known / mm; localStorage.setItem("mcal", String(mcal)); }
+};
 $("mok").onclick = () => {
  const mm = mmCalc(); if (!mm || shots.length >= 4) return; const kind = $("mkind").value; mdraw(true);
  mcv.toBlob(b => { if (!b) return; b.mm = { kind, mm: mm.toFixed(1) }; shots.push(b); mergedUrl = ""; $("merged").hidden = true; exitMeasure(); drawShots(); camCount(); if (navigator.vibrate) navigator.vibrate(30); }, "image/jpeg", 0.9);
