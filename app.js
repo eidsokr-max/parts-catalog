@@ -193,6 +193,7 @@ function openRequests() {
   $("login").hidden = true;
   $("owner").hidden = false;
   highlightPendingRequests();
+  clearNotifs();
 }
 function goToRequests() {
   if (location.hash !== "#requests") history.replaceState(null, "", "#requests");
@@ -211,8 +212,12 @@ async function notify(title, body) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   const opt = { body, vibrate: [200, 100, 200, 100, 300], tag: "newreq", renotify: true };
   try { if (swReg) { await swReg.showNotification(title, opt); return; } } catch (e) {}
-  try { new Notification(title, opt); } catch (e) {}
+  try { const n = new Notification(title, opt); n.onclick = () => { try { n.close(); } catch (e) {} try { window.focus(); } catch (e) {} goToRequests(); }; } catch (e) {}
 }
+// يقفل أي إشعار ظاهر (لما تفتح الطلبات أو ترجع للصفحة)
+async function clearNotifs() { try { const r = swReg || (navigator.serviceWorker && await navigator.serviceWorker.getRegistration()); if (r) (await r.getNotifications()).forEach(n => n.close()); } catch (e) {} }
+document.addEventListener("visibilitychange", () => { if (!document.hidden && isOwner) clearNotifs(); });
+window.addEventListener("focus", () => { if (isOwner) clearNotifs(); });
 const notifBtn = el("button", { className: "btn sec wide", type: "button" });
 const updNotif = () => { const p = "Notification" in window ? Notification.permission : "none"; notifBtn.textContent = p === "granted" ? "إشعارات المتصفح شغالة ✓" : p === "denied" ? "الإشعارات مقفولة من إعدادات المتصفح" : p === "none" ? "المتصفح مش بيدعم الإشعارات" : "فعّل إشعارات المتصفح"; };
 notifBtn.onclick = async () => { beep(); if (!("Notification" in window)) return; try { await Notification.requestPermission(); } catch (e) {} updNotif(); notify("تم تفعيل الإشعارات", "هيوصلك إشعار لما حد يطلب قطعة."); };
