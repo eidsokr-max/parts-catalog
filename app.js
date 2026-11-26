@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, onSnapshot, addDoc, deleteDoc, updateDoc, runTransaction, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, addDoc, getDoc, getDocs, setDoc, deleteDoc, deleteField, updateDoc, runTransaction, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -28,6 +28,33 @@ const flash = t => { const m = $("msg"); m.textContent = t; m.hidden = false; se
 onSnapshot(collection(db, "parts"), s => { parts = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); render(); renderLow(); },
   e => flash("تعذر تحميل القطع: " + e.message));
 
+// ---- الصور: نسخة صغيرة (thumb) للقائمة، والصورة الكاملة في مجموعة partimg بتتحمل لما تفتح القطعة بس ----
+let modalPartId = null;
+function openFull(p) {
+  modalPartId = p.id;
+  const mi = $("mimg");
+  mi.src = p.thumb || p.img || "";
+  $("mname").textContent = p.name;
+  $("modal").hidden = false;
+  if (p.img) return; // قطعة لسه ماتحولتش: الصورة الكاملة أصلا محملة
+  getDoc(doc(db, "partimg", p.id)).then(s => {
+    const full = s.exists() ? s.data().img : "";
+    if (full && modalPartId === p.id && !$("modal").hidden) mi.src = full;
+  }).catch(() => {});
+}
+const makeThumb = src => new Promise((res, rej) => {
+  const i = new Image();
+  i.onload = () => {
+    const k = Math.min(1, 360 / Math.max(i.width, i.height));
+    const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(i.width * k)); c.height = Math.max(1, Math.round(i.height * k));
+    const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(i, 0, 0, c.width, c.height);
+    for (const q of [0.72, 0.6, 0.5]) { const d = c.toDataURL("image/jpeg", q); if (d.length < 60000) return res(d); }
+    res(c.toDataURL("image/jpeg", 0.4));
+  };
+  i.onerror = () => rej(new Error("تعذر تجهيز النسخة الصغيرة"));
+  i.src = src;
+});
+
 function render() {
   fillDepts(); deptF = $("deptFilter").value;
   const cats = [...new Set(parts.map(p => p.cat))];
@@ -37,7 +64,7 @@ function render() {
   const shown = parts.filter(p => (cat === "الكل" || p.cat === cat) && (!deptF || p.dept === deptF) && `${p.name} ${p.code || ""} ${p.cat} ${p.model || ""} ${p.loc || ""} ${p.notes || ""} ${p.dept || ""} ${p.dims || ""} ${p.qtyu ? "تقريبي مش متأكد" : ""}`.toLowerCase().includes(q));
   $("empty").hidden = shown.length > 0;
   $("grid").replaceChildren(...shown.map(p => {
-    const img = el("img", { src: p.img, alt: p.name, loading: "lazy", onclick: () => { $("mimg").src = p.img; $("mname").textContent = p.name; $("modal").hidden = false; } });
+    const img = el("img", { src: p.thumb || p.img || "", alt: p.name, loading: "lazy", onclick: () => openFull(p) });
     const card = el("div", { className: "card" }, img,
       el("div", { className: "name", textContent: p.name }),
       el("div", { className: "meta", textContent: (p.code ? p.code + " · " : "") + p.cat + (p.dept ? " · " + p.dept : "") }),
@@ -52,7 +79,7 @@ function render() {
       el("button", { className: "btn sec", type: "button", textContent: "-1", disabled: p.qty <= 0, onclick: () => updateDoc(doc(db, "parts", p.id), { qty: p.qty - 1 }) }),
       el("button", { className: "btn sec", type: "button", textContent: "تعديل", onclick: () => openEdit(p) }),
  (() => { const s = el("select", { className: "inp", title: "نقل لقسم آخر" }, el("option", { value: "", textContent: "نقل إلى…" }), ...DEPTS.filter(d => d !== p.dept).map(d => el("option", { value: d, textContent: d }))); s.onchange = async () => { if (!s.value) return; const to = s.value; if (confirm("نقل " + p.name + " إلى " + to + "؟")) { try { await updateDoc(doc(db, "parts", p.id), { dept: to }); flash("تم نقل القطعة إلى " + to); } catch (e) { flash("تعذر النقل: " + e.message); } } s.value = ""; }; return s; })(),
- el("button", { className: "btn sec", type: "button", textContent: "حذف", onclick: () => { if (confirm("حذف " + p.name + "؟")) deleteDoc(doc(db, "parts", p.id)); } })));
+ el("button", { className: "btn sec", type: "button", textContent: "حذف", onclick: () => { if (confirm("حذف " + p.name + "؟")) { deleteDoc(doc(db, "parts", p.id)); deleteDoc(doc(db, "partimg", p.id)).catch(() => {}); } } })));
     return card;
   }));
 }
@@ -88,7 +115,42 @@ function download(name, rows) {
 const stamp = () => new Date().toISOString().slice(0, 10);
 $("expParts").onclick = () => download(`parts-${stamp()}.csv`, [["الاسم", "رقم القطعة", "التصنيف", "القسم", "الموديل", "المكان", "المقاس", "ملاحظات", "الكمية", "العدد مؤكد؟"], ...parts.map(p => [p.name, p.code, p.cat, p.dept, p.model, p.loc, p.dims, p.notes, p.qtyu ? p.qty + " (تقريبي)" : p.qty, p.qtyu ? "لا" : "نعم"])]);
 $("expReqs").onclick = () => download(`requests-${stamp()}.csv`, [["القطعة", "اسم الطالب", "قسم الطالب", "رقم/إيميل", "الوقت", "الحالة", "تم التسليم"], ...reqs.map(r => [r.partName, r.name, r.dept, r.phone, r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString("ar-EG") : "", ({ pending: "في الانتظار", rejected: "مرفوض" })[r.status] || "تمت الموافقة", r.done ? "نعم" : "لا"])]);
-$("mclose").onclick = () => $("modal").hidden = true;
+$("mclose").onclick = () => { $("modal").hidden = true; modalPartId = null; };
+
+// ---- نسخة احتياطية كاملة (JSON فيه الصور) + تحويل القطع القديمة للنظام السريع ----
+$("backup").onclick = async () => {
+  $("backup").disabled = true;
+  try {
+    const snap = await getDocs(collection(db, "partimg")), imgMap = {};
+    snap.forEach(d => { imgMap[d.id] = d.data().img; });
+    const iso = t => t && t.toDate ? t.toDate().toISOString() : null;
+    const data = { exportedAt: new Date().toISOString(), parts: parts.map(p => ({ ...p, createdAt: iso(p.createdAt), img: p.img || imgMap[p.id] || null })), requests: reqs.map(r => ({ ...r, createdAt: iso(r.createdAt), decidedAt: iso(r.decidedAt) })) };
+    const a = el("a", { href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" })), download: `backup-${stamp()}.json` });
+    document.body.append(a); a.click(); a.remove();
+    flash("اتنزّلت النسخة الاحتياطية (" + data.parts.length + " قطعة).");
+  } catch (e) { flash("تعذر النسخ الاحتياطي: " + e.message); }
+  $("backup").disabled = false;
+};
+$("migrate").onclick = async () => {
+  const st = $("migStatus"), todo = parts.filter(p => p.img || !p.thumb);
+  if (!todo.length) { st.textContent = "كل القطع على النظام السريع بالفعل."; return; }
+  $("migrate").disabled = true;
+  let ok = 0, fail = 0;
+  for (const p of todo) {
+    st.textContent = "جاري تحويل " + (ok + fail + 1) + " من " + todo.length + ": " + p.name;
+    try {
+      let src = p.img;
+      if (!src) { const s = await getDoc(doc(db, "partimg", p.id)); src = s.exists() ? s.data().img : ""; }
+      if (!src) throw new Error("مفيش صورة");
+      const thumb = p.thumb || await makeThumb(src);
+      await setDoc(doc(db, "partimg", p.id), { img: src });
+      await updateDoc(doc(db, "parts", p.id), { thumb, img: deleteField() });
+      ok++;
+    } catch (e) { fail++; console.error("migrate failed", p.id, e); }
+  }
+  st.textContent = "تم تحويل " + ok + " قطعة" + (fail ? "، وفشل " + fail + " (التفاصيل في الـconsole)" : "") + ".";
+  $("migrate").disabled = false;
+};
 
 // ---- request a part ----
 function openReq(p) { reqPart = p; $("rtitle").textContent = "طلب: " + p.name; $("rname").value = localStorage.getItem("rname") || ""; $("rphone").value = localStorage.getItem("rphone") || ""; $("rdept").value = localStorage.getItem("rdept") || ""; $("rerr").textContent = ""; $("reqModal").hidden = false; }
@@ -286,7 +348,10 @@ $("save").onclick = async () => {
   $("save").disabled = true; $("saveErr").textContent = "";
   const done = () => { shots = []; mergedUrl = ""; $("merged").hidden = true; ["fname", "fcode", "fcat", "fmodel", "floc", "fnotes", "fdims"].forEach(i => $(i).value = ""); dimsEdited = false; $("fdept").value = ""; $("fqty").value = "1"; $("fqtyu").checked = false; drawShots(); flash("تمت إضافة القطعة."); localStorage.removeItem("draft"); localStorage.removeItem("draftu"); };
   try {
-    await addDoc(collection(db, "parts"), { name: $("fname").value.trim(), code: $("fcode").value.trim(), cat: $("fcat").value.trim(), dept: $("fdept").value, model: $("fmodel").value.trim(), loc: $("floc").value.trim(), dims: $("fdims").value.trim(), notes: $("fnotes").value.trim(), qty: (n => $("fqtyu").checked && !n ? 1 : n)(Math.max(0, parseInt($("fqty").value) || 0)), qtyu: $("fqtyu").checked, img: mergedUrl, createdAt: serverTimestamp() });
+    const thumb = await makeThumb(mergedUrl);
+    const ref = doc(collection(db, "parts"));
+    await setDoc(doc(db, "partimg", ref.id), { img: mergedUrl });
+    await setDoc(ref, { name: $("fname").value.trim(), code: $("fcode").value.trim(), cat: $("fcat").value.trim(), dept: $("fdept").value, model: $("fmodel").value.trim(), loc: $("floc").value.trim(), dims: $("fdims").value.trim(), notes: $("fnotes").value.trim(), qty: (n => $("fqtyu").checked && !n ? 1 : n)(Math.max(0, parseInt($("fqty").value) || 0)), qtyu: $("fqtyu").checked, thumb, createdAt: serverTimestamp() });
     done();
   } catch (e) { if (e && e.code === "already-exists") { done(); return; } $("saveErr").textContent = "تعذر الحفظ: " + e.message; checkSave(); }
 };
