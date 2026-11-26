@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, onSnapshot, addDoc, getDoc, getDocs, setDoc, deleteDoc, deleteField, updateDoc, runTransaction, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, addDoc, getDoc, getDocs, setDoc, deleteDoc, deleteField, updateDoc, runTransaction, increment, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -528,3 +528,22 @@ $("arUse").onclick = () => {
     else arToast("اتحفظت اللقطة " + shots.length + " من ٤. قيس وصوّر اللقطة اللي بعدها، أو اضغط خروج.", 3000);
   }, "image/jpeg", 0.85);
 };
+
+// ---- عداد الزيارات (المالك بس اللي يشوفه) ----
+const dayId = (d = new Date()) => d.toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+async function loadVisits() {
+  const box = $("visitStats"); if (!box) return;
+  try {
+    const s = await getDocs(collection(db, "visits")); const m = {}; s.docs.forEach(d => m[d.id] = d.data().n || 0);
+    const today = m[dayId()] || 0; let week = 0, all = 0;
+    for (const k in m) { all += m[k]; if (Date.now() - new Date(k + "T12:00:00+02:00").getTime() < 7 * 864e5) week += m[k]; }
+    box.textContent = "النهارده: " + today + " | آخر 7 أيام: " + week + " | الإجمالي: " + all + " (كل فتحة للموقع في جلسة جديدة بتتحسب مرة، وزياراتك انت مش بتتحسب)";
+  } catch (e) { box.textContent = "تعذر تحميل الزيارات"; }
+}
+let visitDone = false;
+onAuthStateChanged(auth, u => {
+  if (u) { loadVisits(); }
+  if (visitDone) return; visitDone = true; if (u) return;
+  try { if (sessionStorage.getItem("vc")) return; sessionStorage.setItem("vc", "1"); } catch (e) {}
+  setDoc(doc(db, "visits", dayId()), { n: increment(1) }, { merge: true }).catch(() => {});
+});
