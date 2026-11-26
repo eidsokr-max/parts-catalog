@@ -25,7 +25,7 @@ $("deptFilter").onchange = e => { deptF = e.target.value; render(); };
 let cat = "الكل", isOwner = false, reqPart = null, unsubReq = null;
 const flash = t => { const m = $("msg"); m.textContent = t; m.hidden = false; setTimeout(() => m.hidden = true, 6000); };
 
-onSnapshot(collection(db, "parts"), s => { parts = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); render(); renderLow(); },
+onSnapshot(collection(db, "parts"), s => { window.__ld = true; parts = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); render(); renderLow(); },
   e => flash("تعذر تحميل القطع: " + e.message));
 
 // ---- الصور: نسخة صغيرة (thumb) للقائمة، والصورة الكاملة في مجموعة partimg بتتحمل لما تفتح القطعة بس ----
@@ -62,7 +62,7 @@ function render() {
   $("cats").replaceChildren(...cats.map(c => el("option", { value: c })));
   const q = $("q").value.trim().toLowerCase();
   const shown = parts.filter(p => (cat === "الكل" || p.cat === cat) && (!deptF || p.dept === deptF) && `${p.name} ${p.code || ""} ${p.cat} ${p.model || ""} ${p.loc || ""} ${p.notes || ""} ${p.dept || ""} ${p.dims || ""} ${p.qtyu ? "تقريبي مش متأكد" : ""}`.toLowerCase().includes(q));
-  $("empty").hidden = shown.length > 0;
+  $("empty").textContent = window.__ld ? "مفيش نتائج." : "جاري التحميل..."; $("empty").hidden = !!window.__ld && shown.length > 0;
   $("grid").replaceChildren(...shown.map(p => {
     const img = el("img", { src: p.thumb || p.img || "", alt: p.name, loading: "lazy", onclick: () => openFull(p) });
     const card = el("div", { className: "card" }, img,
