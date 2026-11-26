@@ -148,3 +148,11 @@ h2,h3{color:var(--brand)}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 .badge{cursor:pointer;min-width:30px;min-height:30px;padding:5px 9px;line-height:1.4;touch-action:manipulation}
+
+/* equal-height cards */
+.grid{align-items:stretch}
+.card{height:100%;box-sizing:border-box}
+.card img{aspect-ratio:1/1!important;height:auto!important;object-fit:contain!important;background:#f3eee7}
+.card>.name{min-height:2.7em}
+.card>div:has(+ .btn.wide){margin-top:auto}
+.card>.btn.wide{margin-top:0}
